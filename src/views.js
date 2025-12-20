@@ -16,13 +16,14 @@ function encodePathForUrl(posixPath) {
     .join("/");
 }
 
-function renderBreadcrumbs(relPathPosix) {
+function renderBreadcrumbs(relPathPosix, querySuffix) {
   const parts = (relPathPosix || "").split("/").filter(Boolean);
-  const crumbs = [{ name: "", href: "/tree/" }];
+  const suffix = querySuffix || "";
+  const crumbs = [{ name: "", href: `/tree/${suffix}` }];
   let cursor = "";
   for (const p of parts) {
     cursor = cursor ? `${cursor}/${p}` : p;
-    crumbs.push({ name: p, href: `/tree/${encodePathForUrl(cursor)}` });
+    crumbs.push({ name: p, href: `/tree/${encodePathForUrl(cursor)}${suffix}` });
   }
 
   const html = crumbs
@@ -51,13 +52,13 @@ function pageTemplate({ title, repoName, gitInfo, relPathPosix, bodyHtml }) {
   <body>
     <header class="topbar">
       <div class="topbar-row">
-        <a class="brand" href="/tree/">${escapeHtml(repoName)}</a>
+        <a class="brand" href="/tree/${querySuffix || ""}">${escapeHtml(repoName)}</a>
         <div class="meta">
           <span class="pill">${branch}</span>
           ${commit ? `<span class="pill mono">${commit}</span>` : ""}
         </div>
       </div>
-      ${renderBreadcrumbs(relPathPosix)}
+      ${renderBreadcrumbs(relPathPosix, "")}
     </header>
     <main class="container">
       ${bodyHtml}
@@ -69,23 +70,41 @@ function pageTemplate({ title, repoName, gitInfo, relPathPosix, bodyHtml }) {
 </html>`;
 }
 
-function renderBrokenLinksPill(brokenLinks) {
+function renderBrokenLinksPill(brokenLinks, querySuffix) {
   const state = brokenLinks;
   if (!state) return "";
   const status = state.status;
   const count = state.lastResult?.broken?.length ?? 0;
-  if (status === "running") return `<a class="pill link" href="/broken-links">Scanning links…</a>`;
+  const href = `/broken-links${querySuffix || ""}`;
+  if (status === "running") return `<a class="pill link" href="${href}">Scanning links…</a>`;
   if (state.lastResult) {
-    return `<a class="pill link" href="/broken-links">Broken: ${count}</a>`;
+    return `<a class="pill link" href="${href}">Broken: ${count}</a>`;
   }
-  if (state.lastError) return `<a class="pill link" href="/broken-links">Broken: ?</a>`;
+  if (state.lastError) return `<a class="pill link" href="${href}">Broken: ?</a>`;
   return "";
 }
 
-function pageTemplateWithLinks({ title, repoName, gitInfo, relPathPosix, bodyHtml, brokenLinks }) {
+function renderIgnoredTogglePill({ toggleIgnoredHref, showIgnored }) {
+  const href = toggleIgnoredHref || "#";
+  const label = showIgnored ? "Ignored: on" : "Ignored: off";
+  return `<a class="pill link" href="${href}">${label}</a>`;
+}
+
+function pageTemplateWithLinks({
+  title,
+  repoName,
+  gitInfo,
+  relPathPosix,
+  bodyHtml,
+  brokenLinks,
+  querySuffix,
+  toggleIgnoredHref,
+  showIgnored,
+}) {
   const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
-  const brokenPill = renderBrokenLinksPill(brokenLinks);
+  const brokenPill = renderBrokenLinksPill(brokenLinks, querySuffix);
+  const ignoredPill = renderIgnoredTogglePill({ toggleIgnoredHref, showIgnored });
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -105,9 +124,10 @@ function pageTemplateWithLinks({ title, repoName, gitInfo, relPathPosix, bodyHtm
           <span class="pill">${branch}</span>
           ${commit ? `<span class="pill mono">${commit}</span>` : ""}
           ${brokenPill}
+          ${ignoredPill}
         </div>
       </div>
-      ${renderBreadcrumbs(relPathPosix)}
+      ${renderBreadcrumbs(relPathPosix, querySuffix)}
     </header>
     <main class="container">
       ${bodyHtml}
@@ -124,6 +144,9 @@ export function renderTreePage({
   repoName,
   gitInfo,
   brokenLinks,
+  querySuffix,
+  toggleIgnoredHref,
+  showIgnored,
   relPathPosix,
   rows,
   readmeHtml,
@@ -162,7 +185,17 @@ export function renderTreePage({
 </section>
 ${readmeSection}`;
 
-  return pageTemplateWithLinks({ title, repoName, gitInfo, brokenLinks, relPathPosix, bodyHtml: body });
+  return pageTemplateWithLinks({
+    title,
+    repoName,
+    gitInfo,
+    brokenLinks,
+    toggleIgnoredHref,
+    showIgnored,
+    querySuffix,
+    relPathPosix,
+    bodyHtml: body,
+  });
 }
 
 export function renderFilePage({
@@ -170,14 +203,18 @@ export function renderFilePage({
   repoName,
   gitInfo,
   brokenLinks,
+  querySuffix,
+  toggleIgnoredHref,
+  showIgnored,
   relPathPosix,
   fileName,
   isMarkdown,
   renderedHtml,
 }) {
   const relDir = path.posix.dirname(relPathPosix || "");
-  const rawHref = `/raw/${encodePathForUrl(relPathPosix || "")}`;
-  const treeHref = `/tree/${encodePathForUrl(relDir === "." ? "" : relDir)}`;
+  const suffix = querySuffix || "";
+  const rawHref = `/raw/${encodePathForUrl(relPathPosix || "")}${suffix}`;
+  const treeHref = `/tree/${encodePathForUrl(relDir === "." ? "" : relDir)}${suffix}`;
 
   const body = `<section class="panel">
   <div class="panel-title">
@@ -191,7 +228,17 @@ export function renderFilePage({
   </div>
 </section>`;
 
-  return pageTemplateWithLinks({ title, repoName, gitInfo, brokenLinks, relPathPosix, bodyHtml: body });
+  return pageTemplateWithLinks({
+    title,
+    repoName,
+    gitInfo,
+    brokenLinks,
+    toggleIgnoredHref,
+    showIgnored,
+    querySuffix,
+    relPathPosix,
+    bodyHtml: body,
+  });
 }
 
 export function renderErrorPage({ title, message }) {
@@ -214,7 +261,16 @@ export function renderErrorPage({ title, message }) {
 </html>`;
 }
 
-export function renderBrokenLinksPage({ title, repoName, gitInfo, relPathPosix, scanState }) {
+export function renderBrokenLinksPage({
+  title,
+  repoName,
+  gitInfo,
+  relPathPosix,
+  scanState,
+  querySuffix,
+  toggleIgnoredHref,
+  showIgnored,
+}) {
   const state = scanState || {};
   const result = state.lastResult;
   const broken = result?.broken || [];
@@ -239,7 +295,9 @@ export function renderBrokenLinksPage({ title, repoName, gitInfo, relPathPosix, 
   const sections = Array.from(grouped.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([source, items]) => {
-      const sourceHref = `/blob/${source.split("/").map(encodeURIComponent).join("/")}`;
+      const sourceHref = `/blob/${source.split("/").map(encodeURIComponent).join("/")}${
+        querySuffix || ""
+      }`;
       const rows = items
         .map((i) => {
           const reason = escapeHtml(i.reason || "");
@@ -276,6 +334,9 @@ ${sections || `<section class="panel"><div class="panel-title">All good</div><di
     repoName,
     gitInfo,
     brokenLinks: scanState,
+    toggleIgnoredHref,
+    showIgnored,
+    querySuffix,
     relPathPosix,
     bodyHtml: body,
   });

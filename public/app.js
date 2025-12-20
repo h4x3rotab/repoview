@@ -11,6 +11,34 @@
   });
 })();
 
+function preserveQueryParamsOnInternalLinks(keys) {
+  const current = new URLSearchParams(location.search);
+  const keep = new URLSearchParams();
+  for (const k of keys) {
+    const v = current.get(k);
+    if (v != null) keep.set(k, v);
+  }
+  if ([...keep.keys()].length === 0) return;
+
+  for (const a of document.querySelectorAll("a[href]")) {
+    const href = a.getAttribute("href");
+    if (!href) continue;
+    if (!href.startsWith("/")) continue;
+    if (href.startsWith("/static/")) continue;
+    if (href.startsWith("/events")) continue;
+
+    try {
+      const u = new URL(href, location.origin);
+      for (const [k, v] of keep.entries()) {
+        if (!u.searchParams.has(k)) u.searchParams.set(k, v);
+      }
+      a.setAttribute("href", u.pathname + u.search + u.hash);
+    } catch {
+      // ignore
+    }
+  }
+}
+
 async function renderMermaid() {
   const nodes = document.querySelectorAll(".mermaid");
   if (!nodes.length) return;
@@ -47,6 +75,7 @@ function renderMath() {
 }
 
 window.addEventListener("load", () => {
+  preserveQueryParamsOnInternalLinks(["ignored", "watch"]);
   renderMath();
   renderMermaid();
 });

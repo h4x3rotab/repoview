@@ -51,6 +51,9 @@ Environment variables:
 - `GET /blob/<path>` → file viewer (Markdown rendered; other files shown as highlighted text)
 - `GET /raw/<path>` → raw file bytes (used for images/assets in Markdown)
 
+Query params:
+- `?ignored=1` shows files ignored by the repo’s `.gitignore` (default: hidden)
+
 ## Live reload
 
 When watch is enabled, the server watches the repo (excluding `.git/` and `node_modules/`) and pushes a reload event to the browser via Server-Sent Events:

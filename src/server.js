@@ -7,6 +7,7 @@ import chokidar from "chokidar";
 import mime from "mime-types";
 
 import { createMarkdownRenderer } from "./markdown.js";
+import { loadGitIgnoreMatcher } from "./gitignore.js";
 import { createRepoLinkScanner } from "./linkcheck.js";
 import {
   renderBrokenLinksPage,
@@ -136,7 +137,9 @@ export async function startServer({ repoRoot, host, port, watch }) {
   const gitInfo = await getGitInfo(repoRootReal);
   const reloadHub = createReloadHub();
   const md = createMarkdownRenderer();
-  const linkScanner = createRepoLinkScanner({ repoRootReal, markdownRenderer: md });
+  let ignoreMatcher = await loadGitIgnoreMatcher(repoRootReal);
+  const isIgnored = (relPosix, opts) => ignoreMatcher.ignores(relPosix, opts);
+  const linkScanner = createRepoLinkScanner({ repoRootReal, markdownRenderer: md, isIgnored });
 
   const app = express();
   app.disable("x-powered-by");
@@ -183,6 +186,18 @@ export async function startServer({ repoRoot, host, port, watch }) {
   });
 
   app.get("/broken-links", (req, res) => {
+    const showIgnored = req.query.ignored === "1";
+    const query = new URLSearchParams();
+    if (req.query.watch === "0") query.set("watch", "0");
+    if (showIgnored) query.set("ignored", "1");
+    const querySuffix = query.toString() ? `?${query.toString()}` : "";
+    const toggleIgnoredSuffix = (() => {
+      const q = new URLSearchParams(query);
+      if (showIgnored) q.delete("ignored");
+      else q.set("ignored", "1");
+      return q.toString() ? `?${q.toString()}` : "";
+    })();
+    const toggleIgnoredHref = `/broken-links${toggleIgnoredSuffix}`;
     const state = linkScanner.getState();
     res.status(200).send(
       renderBrokenLinksPage({
@@ -191,6 +206,9 @@ export async function startServer({ repoRoot, host, port, watch }) {
         gitInfo,
         relPathPosix: "",
         scanState: state,
+        querySuffix,
+        toggleIgnoredHref,
+        showIgnored,
       }),
     );
   });
@@ -206,10 +224,28 @@ export async function startServer({ repoRoot, host, port, watch }) {
 
   app.get(["/tree/*", "/tree"], async (req, res) => {
     try {
+      const showIgnored = req.query.ignored === "1";
+      const query = new URLSearchParams();
+      if (req.query.watch === "0") query.set("watch", "0");
+      if (showIgnored) query.set("ignored", "1");
+      const querySuffix = query.toString() ? `?${query.toString()}` : "";
+      const toggleIgnoredSuffix = (() => {
+        const q = new URLSearchParams(query);
+        if (showIgnored) q.delete("ignored");
+        else q.set("ignored", "1");
+        return q.toString() ? `?${q.toString()}` : "";
+      })();
+
       const p = req.params[0] ?? "";
       const { stripped, resolved } = await safeRealpath(repoRootReal, p);
+      const toggleIgnoredHref = `/tree/${encodePathForUrl(
+        toPosixPath(stripped),
+      )}${toggleIgnoredSuffix}`;
       const st = await statSafe(resolved);
-      if (st.isFile) return res.redirect(`/blob/${encodePathForUrl(toPosixPath(stripped))}`);
+      if (st.isFile)
+        return res.redirect(
+          `/blob/${encodePathForUrl(toPosixPath(stripped))}${querySuffix}`,
+        );
 
       const entries = await fs.readdir(resolved, { withFileTypes: true });
       const readmeEntry = entries.find(
@@ -219,15 +255,20 @@ export async function startServer({ repoRoot, host, port, watch }) {
       );
       const rows = await Promise.all(
         entries
-          .filter((e) => e.name !== ".git")
+          .filter((e) => {
+            if (e.name === ".git") return false;
+            if (showIgnored) return true;
+            const relPosix = toPosixPath(path.posix.join(toPosixPath(stripped), e.name));
+            return !ignoreMatcher.ignores(relPosix, { isDir: e.isDirectory() });
+          })
           .map(async (e) => {
             const relPosix = toPosixPath(path.posix.join(toPosixPath(stripped), e.name));
             const full = path.join(resolved, e.name);
             const info = await statSafe(full, { followSymlinks: false });
             const isDir = e.isDirectory();
             const href = isDir
-              ? `/tree/${encodePathForUrl(relPosix)}`
-              : `/blob/${encodePathForUrl(relPosix)}`;
+              ? `/tree/${encodePathForUrl(relPosix)}${querySuffix}`
+              : `/blob/${encodePathForUrl(relPosix)}${querySuffix}`;
             return {
               name: e.name,
               isDir,
@@ -247,6 +288,8 @@ export async function startServer({ repoRoot, host, port, watch }) {
       if (readmeEntry) {
         try {
           const readmeRel = toPosixPath(path.posix.join(toPosixPath(stripped), readmeEntry.name));
+          if (!showIgnored && ignoreMatcher.ignores(readmeRel, { isDir: false }))
+            throw new Error("ignored");
           const { resolved: readmePath } = await safeRealpath(repoRootReal, readmeRel);
           const readmeStat = await statSafe(readmePath);
           if (readmeStat.size <= 2 * 1024 * 1024) {
@@ -267,6 +310,9 @@ export async function startServer({ repoRoot, host, port, watch }) {
           gitInfo,
           brokenLinks: linkScanner.getState(),
           relPathPosix: toPosixPath(stripped),
+          querySuffix,
+          toggleIgnoredHref,
+          showIgnored,
           rows,
           readmeHtml,
         }),
@@ -280,10 +326,28 @@ export async function startServer({ repoRoot, host, port, watch }) {
 
   app.get(["/blob/*", "/blob"], async (req, res) => {
     try {
+      const showIgnored = req.query.ignored === "1";
+      const query = new URLSearchParams();
+      if (req.query.watch === "0") query.set("watch", "0");
+      if (showIgnored) query.set("ignored", "1");
+      const querySuffix = query.toString() ? `?${query.toString()}` : "";
+      const toggleIgnoredSuffix = (() => {
+        const q = new URLSearchParams(query);
+        if (showIgnored) q.delete("ignored");
+        else q.set("ignored", "1");
+        return q.toString() ? `?${q.toString()}` : "";
+      })();
+
       const p = req.params[0] ?? "";
       const { stripped, resolved } = await safeRealpath(repoRootReal, p);
+      const toggleIgnoredHref = `/blob/${encodePathForUrl(
+        toPosixPath(stripped),
+      )}${toggleIgnoredSuffix}`;
       const st = await statSafe(resolved);
-      if (st.isDir) return res.redirect(`/tree/${encodePathForUrl(toPosixPath(stripped))}`);
+      if (st.isDir)
+        return res.redirect(
+          `/tree/${encodePathForUrl(toPosixPath(stripped))}${querySuffix}`,
+        );
 
       const fileName = path.basename(resolved);
       const ext = path.extname(fileName).toLowerCase();
@@ -291,18 +355,23 @@ export async function startServer({ repoRoot, host, port, watch }) {
       const maxBytes = 2 * 1024 * 1024;
 
       if (st.size > maxBytes) {
-      res.status(200).send(
-        renderFilePage({
-          title: `${repoName}/${stripped}`,
-          repoName,
-          gitInfo,
-          brokenLinks: linkScanner.getState(),
-          relPathPosix: toPosixPath(stripped),
-          fileName,
-          isMarkdown: false,
-          renderedHtml: `<div class="note">File is too large to render (${formatBytes(
-            st.size,
-            )}). Use <a href="/raw/${encodePathForUrl(toPosixPath(stripped))}">Raw</a>.</div>`,
+        res.status(200).send(
+          renderFilePage({
+            title: `${repoName}/${stripped}`,
+            repoName,
+            gitInfo,
+            brokenLinks: linkScanner.getState(),
+            relPathPosix: toPosixPath(stripped),
+            querySuffix,
+            toggleIgnoredHref,
+            showIgnored,
+            fileName,
+            isMarkdown: false,
+            renderedHtml: `<div class="note">File is too large to render (${formatBytes(
+              st.size,
+            )}). Use <a href="/raw/${encodePathForUrl(
+              toPosixPath(stripped),
+            )}${querySuffix}">Raw</a>.</div>`,
           }),
         );
         return;
@@ -328,6 +397,9 @@ export async function startServer({ repoRoot, host, port, watch }) {
           gitInfo,
           brokenLinks: linkScanner.getState(),
           relPathPosix: toPosixPath(stripped),
+          querySuffix,
+          toggleIgnoredHref,
+          showIgnored,
           fileName,
           isMarkdown,
           renderedHtml,
@@ -378,6 +450,7 @@ export async function startServer({ repoRoot, host, port, watch }) {
       pending = setTimeout(() => {
         pending = null;
         reloadHub.broadcastReload();
+        void loadGitIgnoreMatcher(repoRootReal).then((m) => (ignoreMatcher = m));
         void linkScanner.triggerScan();
       }, 100);
     });

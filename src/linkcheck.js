@@ -74,7 +74,7 @@ function isMarkdownFile(relPosix) {
   return new Set(["md", "markdown", "mdown", "mkd", "mkdn"]).has(ext);
 }
 
-async function listMarkdownFiles(repoRootReal, { maxFiles } = {}) {
+async function listMarkdownFiles(repoRootReal, { maxFiles, isIgnored } = {}) {
   const results = [];
   const stack = [{ abs: repoRootReal, relPosix: "" }];
   const ignoredNames = new Set([".git", "node_modules"]);
@@ -94,6 +94,9 @@ async function listMarkdownFiles(repoRootReal, { maxFiles } = {}) {
       const childRel = relPosix ? `${relPosix}/${e.name}` : e.name;
       const childRelPosix = toPosixPath(childRel);
 
+      if (typeof isIgnored === "function" && isIgnored(childRelPosix, { isDir: e.isDirectory() }))
+        continue;
+
       if (e.isDirectory()) {
         stack.push({ abs: childAbs, relPosix: childRelPosix });
       } else if (e.isFile()) {
@@ -106,7 +109,7 @@ async function listMarkdownFiles(repoRootReal, { maxFiles } = {}) {
   return results;
 }
 
-export function createRepoLinkScanner({ repoRootReal, markdownRenderer }) {
+export function createRepoLinkScanner({ repoRootReal, markdownRenderer, isIgnored }) {
   let current = {
     status: "idle",
     lastResult: null,
@@ -126,7 +129,10 @@ export function createRepoLinkScanner({ repoRootReal, markdownRenderer }) {
     const startedAt = Date.now();
     current = { ...current, status: "running", lastError: null, lastStartedAt: startedAt };
 
-    const markdownFiles = await listMarkdownFiles(repoRootReal, { maxFiles: maxMarkdownFiles });
+    const markdownFiles = await listMarkdownFiles(repoRootReal, {
+      maxFiles: maxMarkdownFiles,
+      isIgnored,
+    });
     const broken = [];
     let filesScanned = 0;
     let urlsChecked = 0;
@@ -218,6 +224,11 @@ export function createRepoLinkScanner({ repoRootReal, markdownRenderer }) {
             continue;
           }
 
+          if (typeof isIgnored === "function") {
+            if (expectType === "tree" && isIgnored(expected, { isDir: true })) continue;
+            if (expectType !== "tree" && isIgnored(expected, { isDir: false })) continue;
+          }
+
           const resolved = await safeResolveExisting(repoRootReal, expected);
           if (!resolved.ok) {
             broken.push({
@@ -299,4 +310,3 @@ export function createRepoLinkScanner({ repoRootReal, markdownRenderer }) {
 
   return { scanOnce, triggerScan, getState };
 }
-
