@@ -52,6 +52,10 @@ function rewriteLinkHref(href, baseDirPosix) {
   const rawPath = queryIndex >= 0 ? beforeHash.slice(0, queryIndex) : beforeHash;
   const query = queryIndex >= 0 ? beforeHash.slice(queryIndex) : "";
 
+  if (/^\/(?:blob|tree|raw|static)(?:\/|$)/.test(rawPath) || rawPath === "/events") {
+    return href;
+  }
+
   const raw = rawPath.trim();
   if (!raw) return href;
 
@@ -79,6 +83,8 @@ function rewriteImageSrc(src, baseDirPosix) {
   const queryIndex = beforeHash.indexOf("?");
   const rawPath = queryIndex >= 0 ? beforeHash.slice(0, queryIndex) : beforeHash;
   const query = queryIndex >= 0 ? beforeHash.slice(queryIndex) : "";
+
+  if (/^\/(?:raw|static)(?:\/|$)/.test(rawPath)) return src;
 
   const isRooted = rawPath.startsWith("/");
   const targetPosix = isRooted
