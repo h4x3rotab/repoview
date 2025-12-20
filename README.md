@@ -4,16 +4,16 @@ GitHub-like repo browsing — without GitHub.
 
 When platforms change pricing/terms (even for “bring-your-own-runner” CI), it’s a reminder that Git hosting can turn into a dependency and a risk. `repoview` keeps the day-to-day “GitHub UI” experience local: browse, read docs, and share a repo without pushing it anywhere.
 
-Serve a local Git repository as a GitHub-like website:
-
-- Browse directories and files (`tree`/`blob`/`raw`)
-- Render Markdown with GitHub-style CSS (close-to-GitHub)
-- Live reload in the browser when files change (auto refresh)
-- Broken-link scanner for Markdown docs
+## What it does
+- Browse any local repo like GitHub (tree / file views)
+- Render Markdown in GitHub style (README-friendly, close-to-GitHub)
+- Auto-refresh when files change (great for docs)
+- Find broken internal links in your docs (report page)
+- Hide `.gitignore`d files by default (toggleable)
 
 Not affiliated with GitHub.
 
-## Quick start
+## Quick start (from source)
 
 ```bash
 npm install
@@ -28,73 +28,26 @@ Then open `http://localhost:3000`.
 - Share private repos/docs on a LAN without pushing or mirroring.
 - Work offline / in restricted networks with the same browsing UX.
 
-## CLI
+## Usage
 
 ```bash
 npm start -- --repo /path/to/repo [--host 127.0.0.1] [--port 3000] [--no-watch]
 ```
 
-Options:
-- `--help`, `-h`: show help
-- `--repo`: path to the repository root (required)
-- `--host`: bind address (default: `127.0.0.1`)
-- `--port`: bind port (default: `3000`)
-- `--no-watch`: disable filesystem watching + browser auto-refresh (watch is on by default)
+Common flags:
+- `--repo`: repo root
+- `--host`, `--port`: bind address/port
+- `--no-watch`: disable live reload + auto re-scan
 
-Environment variables:
-- `REPO_ROOT`, `HOST`, `PORT`
+Docs:
+- `--help` for full CLI help
+- `DEVELOPMENT.md` for implementation details
+- `CONTRIBUTING.md` for contributing
 
-## URL structure
+## Share on LAN (optional)
 
-- `GET /` → redirects to `GET /tree/`
-- `GET /tree/<path>` → directory listing
-- `GET /blob/<path>` → file viewer (Markdown rendered; other files shown as highlighted text)
-- `GET /raw/<path>` → raw file bytes (used for images/assets in Markdown)
+Bind to all interfaces, then open the host URL from another device:
 
-Query params:
-- `?ignored=1` shows files ignored by the repo’s `.gitignore` (default: hidden)
-
-## Live reload
-
-When watch is enabled, the server watches the repo (excluding `.git/` and `node_modules/`) and pushes a reload event to the browser via Server-Sent Events:
-- `GET /events` (SSE stream)
-
-Client-side reload can be disabled per-tab with `?watch=0` in the URL.
-
-## Broken link scanning
-
-On startup (and on filesystem changes when watch is enabled), the server scans Markdown files, renders them, and verifies that generated internal links resolve to files/directories inside the repo.
-
-- `GET /broken-links` (HTML report)
-- `GET /broken-links.json` (machine-readable)
-
-## Markdown support (close to GitHub)
-
-Rendering is done with `markdown-it` plus targeted plugins and post-processing to feel GitHub-like.
-
-Implemented features:
-- GitHub-style rendering via `github-markdown-css`
-- Tables, strikethrough, autolinkification
-- Task lists (`- [x]`) with non-interactive checkboxes
-- Footnotes (`[^1]`)
-- Emoji shortcodes (e.g. `:smile:`)
-- GitHub-style callouts/alerts:
-  - `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`
-- Math via KaTeX auto-render (`$...$`, `$$...$$`, `\(...\)`, `\[...\]`)
-- Mermaid diagrams via fenced blocks (` ```mermaid `)
-- Common README HTML like `<details>` is allowed, but sanitized
-
-Relative link handling:
-- Relative Markdown links are rewritten to stay within the repo.
-  - Example: from `docs/README.md`, `[Intro](intro.md)` → `/blob/docs/intro.md`
-  - Root-relative: `[Intro](/docs/intro.md)` → `/blob/docs/intro.md`
-- Relative images are rewritten to `/raw/...` so assets load correctly.
-- For HTML inside Markdown (`<a href=...>`, `<img src=...>`), the same rewriting is applied after sanitization.
-
-Security:
-- Rendered HTML is sanitized to drop dangerous tags/attributes (e.g. inline event handlers).
-
-Known gaps vs GitHub:
-- GitHub uses `cmark-gfm` with additional GitHub-specific processing; edge-case parsing can differ.
-- Already percent-encoded paths in links (e.g. `my%20file.md`) may be double-encoded.
-- No issue/PR/user reference linking (by design).
+```bash
+npm start -- --repo /path/to/repo --host 0.0.0.0 --port 8890
+```
