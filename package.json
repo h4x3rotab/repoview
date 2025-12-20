@@ -4,6 +4,14 @@
   "private": false,
   "type": "module",
   "description": "GitHub-like repo browsing for local Git repositories (Markdown, live reload, broken link scanner).",
+  "homepage": "https://github.com/h4x3rotab/repoview#readme",
+  "bugs": {
+    "url": "https://github.com/h4x3rotab/repoview/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/h4x3rotab/repoview.git"
+  },
   "license": "MIT",
   "author": "Hang Yin <hangyin@phala.com>",
   "bin": {
