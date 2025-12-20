@@ -146,6 +146,13 @@ a {
   background: var(--btnHover);
 }
 
+.link {
+  color: var(--accent);
+}
+.link:hover {
+  text-decoration: underline;
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -169,6 +176,11 @@ a {
   font-size: 12px;
   letter-spacing: 0.2px;
   text-transform: uppercase;
+}
+
+.file-table.linkcheck th,
+.file-table.linkcheck td {
+  font-size: 13px;
 }
 
 .file-table td.size,

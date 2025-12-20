@@ -7,7 +7,9 @@ import chokidar from "chokidar";
 import mime from "mime-types";
 
 import { createMarkdownRenderer } from "./markdown.js";
+import { createRepoLinkScanner } from "./linkcheck.js";
 import {
+  renderBrokenLinksPage,
   renderErrorPage,
   renderFilePage,
   renderTreePage,
@@ -134,6 +136,7 @@ export async function startServer({ repoRoot, host, port, watch }) {
   const gitInfo = await getGitInfo(repoRootReal);
   const reloadHub = createReloadHub();
   const md = createMarkdownRenderer();
+  const linkScanner = createRepoLinkScanner({ repoRootReal, markdownRenderer: md });
 
   const app = express();
   app.disable("x-powered-by");
@@ -171,6 +174,26 @@ export async function startServer({ repoRoot, host, port, watch }) {
   });
 
   app.get("/", (req, res) => res.redirect("/tree/"));
+
+  void linkScanner.triggerScan();
+
+  app.get("/broken-links.json", (req, res) => {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.status(200).send(linkScanner.getState());
+  });
+
+  app.get("/broken-links", (req, res) => {
+    const state = linkScanner.getState();
+    res.status(200).send(
+      renderBrokenLinksPage({
+        title: `${repoName} · Broken links`,
+        repoName,
+        gitInfo,
+        relPathPosix: "",
+        scanState: state,
+      }),
+    );
+  });
 
   app.get("/events", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -242,6 +265,7 @@ export async function startServer({ repoRoot, host, port, watch }) {
           title: `${repoName}${stripped ? `/${stripped}` : ""}`,
           repoName,
           gitInfo,
+          brokenLinks: linkScanner.getState(),
           relPathPosix: toPosixPath(stripped),
           rows,
           readmeHtml,
@@ -267,16 +291,17 @@ export async function startServer({ repoRoot, host, port, watch }) {
       const maxBytes = 2 * 1024 * 1024;
 
       if (st.size > maxBytes) {
-        res.status(200).send(
-          renderFilePage({
-            title: `${repoName}/${stripped}`,
-            repoName,
-            gitInfo,
-            relPathPosix: toPosixPath(stripped),
-            fileName,
-            isMarkdown: false,
-            renderedHtml: `<div class="note">File is too large to render (${formatBytes(
-              st.size,
+      res.status(200).send(
+        renderFilePage({
+          title: `${repoName}/${stripped}`,
+          repoName,
+          gitInfo,
+          brokenLinks: linkScanner.getState(),
+          relPathPosix: toPosixPath(stripped),
+          fileName,
+          isMarkdown: false,
+          renderedHtml: `<div class="note">File is too large to render (${formatBytes(
+            st.size,
             )}). Use <a href="/raw/${encodePathForUrl(toPosixPath(stripped))}">Raw</a>.</div>`,
           }),
         );
@@ -301,6 +326,7 @@ export async function startServer({ repoRoot, host, port, watch }) {
           title: `${repoName}/${stripped}`,
           repoName,
           gitInfo,
+          brokenLinks: linkScanner.getState(),
           relPathPosix: toPosixPath(stripped),
           fileName,
           isMarkdown,
@@ -352,6 +378,7 @@ export async function startServer({ repoRoot, host, port, watch }) {
       pending = setTimeout(() => {
         pending = null;
         reloadHub.broadcastReload();
+        void linkScanner.triggerScan();
       }, 100);
     });
   }

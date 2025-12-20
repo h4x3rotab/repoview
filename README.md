@@ -45,6 +45,13 @@ When watch is enabled, the server watches the repo (excluding `.git/` and `node_
 
 Client-side reload can be disabled per-tab with `?watch=0` in the URL.
 
+## Broken link scanning
+
+On startup (and on filesystem changes when watch is enabled), the server scans Markdown files, renders them, and verifies that generated internal links resolve to files/directories inside the repo.
+
+- `GET /broken-links` (HTML report)
+- `GET /broken-links.json` (machine-readable)
+
 ## Markdown support (close to GitHub)
 
 Rendering is done with `markdown-it` plus targeted plugins and post-processing to feel GitHub-like.
