@@ -25,7 +25,7 @@ Then open `http://localhost:3000`.
 
 ## Quick start (npx)
 
-After publishing to npm:
+From anywhere:
 
 ```bash
 npx repoview --repo /path/to/your/repo --port 3000

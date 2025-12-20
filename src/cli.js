@@ -6,13 +6,14 @@ import { startServer } from "./server.js";
 
 function printHelp() {
   // Keep this in sync with README.md
-  process.stdout.write(`repo-viewer
+  process.stdout.write(`repoview
 
 Serve a local Git repository as a GitHub-like website.
 
 Usage:
+  npx repoview --repo /path/to/repo [--host 127.0.0.1] [--port 3000] [--no-watch]
+  repoview --repo /path/to/repo [--host 127.0.0.1] [--port 3000] [--no-watch]
   npm start -- --repo /path/to/repo [--host 127.0.0.1] [--port 3000] [--no-watch]
-  node src/cli.js --repo /path/to/repo [--host 127.0.0.1] [--port 3000] [--no-watch]
 
 Options:
   --repo <path>     Repository root (default: REPO_ROOT or project dir)
