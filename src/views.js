@@ -43,7 +43,7 @@ function pageTemplate({ title, repoName, gitInfo, relPathPosix, bodyHtml }) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)}</title>
-    <link rel="stylesheet" href="/static/vendor/github-markdown-css/github-markdown.css" />
+    <link rel="stylesheet" href="/static/vendor/github-markdown-css/github-markdown-light.css" />
     <link rel="stylesheet" href="/static/vendor/highlight.js/styles/github.css" />
     <link rel="stylesheet" href="/static/vendor/katex/katex.min.css" />
     <link rel="stylesheet" href="/static/app.css" />
@@ -92,7 +92,7 @@ function pageTemplateWithLinks({ title, repoName, gitInfo, relPathPosix, bodyHtm
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)}</title>
-    <link rel="stylesheet" href="/static/vendor/github-markdown-css/github-markdown.css" />
+    <link rel="stylesheet" href="/static/vendor/github-markdown-css/github-markdown-light.css" />
     <link rel="stylesheet" href="/static/vendor/highlight.js/styles/github.css" />
     <link rel="stylesheet" href="/static/vendor/katex/katex.min.css" />
     <link rel="stylesheet" href="/static/app.css" />

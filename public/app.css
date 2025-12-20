@@ -267,10 +267,6 @@ a {
   color: #cf222e;
 }
 
-.markdown-body {
-  color: var(--text);
-}
-
 .markdown-body .markdown-alert {
   margin: 16px 0;
   padding: 12px 14px;
