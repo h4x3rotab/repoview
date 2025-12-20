@@ -67,3 +67,20 @@ Notes:
 npm run lint
 ```
 
+## Release checklist
+
+Before publishing to npm, run a quick smoke test from a clean install context (this catches issues where the server accidentally serves assets from the *repo* instead of the installed package):
+
+```bash
+npm run lint
+npm pack
+
+# install the tarball somewhere else
+tmp=$(mktemp -d)
+cd "$tmp"
+npm init -y
+npm install /path/to/repoview-*.tgz
+
+# serve any repo and verify vendor assets load (no ENOENT)
+node ./node_modules/.bin/repoview --repo /path/to/repo --port 3000
+```

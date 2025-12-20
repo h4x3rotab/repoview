@@ -66,6 +66,10 @@ npm start -- --repo /path/to/repo --host 0.0.0.0 --port 8890
 - Implementation details: [`DEVELOPMENT.md`](DEVELOPMENT.md)
 - CLI usage: `npm start -- --help`
 
+## Troubleshooting
+
+- Seeing `ENOENT .../node_modules/...` in server logs: upgrade to `repoview@>=0.1.2` (older versions incorrectly looked for vendor assets inside the repo you’re serving).
+
 ## Contributing
 
 - Contributing guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
