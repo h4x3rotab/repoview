@@ -26,9 +26,12 @@ function toPosixPath(p) {
 
 function normalizeRepoPath(posixPath) {
   const stripped = String(posixPath || "").replace(/^\/+/, "");
-  const normalized = path.posix.normalize(stripped);
+  let normalized = path.posix.normalize(stripped);
   if (normalized === "." || normalized === "./") return "";
-  if (normalized.startsWith("../")) return null;
+  // GitHub effectively clamps links so they can't escape the repo root.
+  while (normalized === ".." || normalized.startsWith("../")) {
+    normalized = normalized === ".." ? "" : normalized.slice(3);
+  }
   return normalized;
 }
 
