@@ -87,7 +87,7 @@ function renderBrokenLinksPill(brokenLinks, querySuffix) {
 function renderIgnoredTogglePill({ toggleIgnoredHref, showIgnored }) {
   const href = toggleIgnoredHref || "#";
   const label = showIgnored ? "Ignored: on" : "Ignored: off";
-  return `<a class="pill link" href="${href}">${label}</a>`;
+  return `<a class="pill link" data-no-preserve="ignored" href="${href}">${label}</a>`;
 }
 
 function pageTemplateWithLinks({

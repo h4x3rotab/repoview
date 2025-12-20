@@ -27,9 +27,15 @@ function preserveQueryParamsOnInternalLinks(keys) {
     if (href.startsWith("/static/")) continue;
     if (href.startsWith("/events")) continue;
 
+    const noPreserve = String(a.getAttribute("data-no-preserve") || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
     try {
       const u = new URL(href, location.origin);
       for (const [k, v] of keep.entries()) {
+        if (noPreserve.includes(k)) continue;
         if (!u.searchParams.has(k)) u.searchParams.set(k, v);
       }
       a.setAttribute("href", u.pathname + u.search + u.hash);
