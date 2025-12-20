@@ -4,14 +4,15 @@ GitHub-like repo browsing — without GitHub.
 
 When platforms change pricing/terms (even for “bring-your-own-runner” CI), it’s a reminder that Git hosting can turn into a dependency and a risk. `repoview` keeps the day-to-day “GitHub UI” experience local: browse, read docs, and share a repo without pushing it anywhere.
 
-## What it does
-- Browse any local repo like GitHub (tree / file views)
-- Render Markdown in GitHub style (README-friendly, close-to-GitHub)
-- Auto-refresh when files change (great for docs)
-- Find broken internal links in your docs (report page)
-- Hide `.gitignore`d files by default (toggleable)
-
 Not affiliated with GitHub.
+
+## Features
+
+- GitHub-like browsing for local repos (tree / file / raw views)
+- GitHub-style Markdown rendering (README-friendly; close-to-GitHub)
+- Live reload when files change (SSE with polling fallback)
+- Broken internal link discovery for docs (`/broken-links`)
+- Respects `.gitignore` by default (toggleable)
 
 ## Quick start (from source)
 
@@ -39,11 +40,6 @@ Common flags:
 - `--host`, `--port`: bind address/port
 - `--no-watch`: disable live reload + auto re-scan
 
-Docs:
-- `--help` for full CLI help
-- [`DEVELOPMENT.md`](DEVELOPMENT.md) for implementation details
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) for contributing
-
 ## Share on LAN (optional)
 
 Bind to all interfaces, then open the host URL from another device:
@@ -51,3 +47,17 @@ Bind to all interfaces, then open the host URL from another device:
 ```bash
 npm start -- --repo /path/to/repo --host 0.0.0.0 --port 8890
 ```
+
+## UI toggles
+
+- `?ignored=1` shows files ignored by the repo’s `.gitignore` (default: hidden)
+- `?watch=0` disables browser auto-refresh for that tab
+
+## Development
+
+- Implementation details: [`DEVELOPMENT.md`](DEVELOPMENT.md)
+- CLI usage: `npm start -- --help`
+
+## Contributing
+
+- Contributing guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
