@@ -1,10 +1,17 @@
-# repo-viewer
+# repoview
 
-Serve a local Git repository as a GitHub-like website (no GitHub required):
+GitHub-like repo browsing — without GitHub.
+
+When platforms change pricing/terms (even for “bring-your-own-runner” CI), it’s a reminder that Git hosting can turn into a dependency and a risk. `repoview` keeps the day-to-day “GitHub UI” experience local: browse, read docs, and share a repo without pushing it anywhere.
+
+Serve a local Git repository as a GitHub-like website:
 
 - Browse directories and files (`tree`/`blob`/`raw`)
-- Render Markdown with GitHub-style CSS (close-to-GitHub, not byte-identical)
+- Render Markdown with GitHub-style CSS (close-to-GitHub)
 - Live reload in the browser when files change (auto refresh)
+- Broken-link scanner for Markdown docs
+
+Not affiliated with GitHub.
 
 ## Quick start
 
@@ -14,6 +21,12 @@ npm start -- --repo /path/to/your/repo --port 3000
 ```
 
 Then open `http://localhost:3000`.
+
+## Why
+
+- Keep GitHub as a remote, not your developer portal.
+- Share private repos/docs on a LAN without pushing or mirroring.
+- Work offline / in restricted networks with the same browsing UX.
 
 ## CLI
 
