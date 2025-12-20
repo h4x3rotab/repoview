@@ -1,10 +1,33 @@
 {
-  "name": "repo-viewer",
+  "name": "repoview",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
-  "description": "Local GitHub-like repository browser with GitHub-style Markdown rendering and live reload.",
+  "description": "GitHub-like repo browsing for local Git repositories (Markdown, live reload, broken link scanner).",
   "license": "MIT",
+  "bin": {
+    "repoview": "src/cli.js"
+  },
+  "files": [
+    "src/",
+    "public/",
+    "README.md",
+    "LICENSE",
+    "DEVELOPMENT.md",
+    "CONTRIBUTING.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "git",
+    "repository",
+    "viewer",
+    "markdown",
+    "github",
+    "docs",
+    "live-reload"
+  ],
   "scripts": {
     "start": "node src/cli.js",
     "dev": "node src/cli.js --watch",

@@ -23,6 +23,14 @@ npm start -- --repo /path/to/your/repo --port 3000
 
 Then open `http://localhost:3000`.
 
+## Quick start (npx)
+
+After publishing to npm:
+
+```bash
+npx repoview --repo /path/to/your/repo --port 3000
+```
+
 ## Why
 
 - Keep GitHub as a remote, not your developer portal.
