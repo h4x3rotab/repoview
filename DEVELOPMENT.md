@@ -20,7 +20,7 @@ npm start -- --repo /path/to/repo --port 3000
 
 Useful flags:
 - `--watch` / `--no-watch` (watch is on by default)
-- `--host 0.0.0.0` to access from other devices on the network
+- `--host 127.0.0.1` to bind locally only
 
 ## Routes
 

@@ -11,13 +11,13 @@ function printHelp() {
 Serve a local Git repository as a GitHub-like website.
 
 Usage:
-  npx repoview --repo /path/to/repo [--host 127.0.0.1] [--port 3000] [--no-watch]
-  repoview --repo /path/to/repo [--host 127.0.0.1] [--port 3000] [--no-watch]
-  npm start -- --repo /path/to/repo [--host 127.0.0.1] [--port 3000] [--no-watch]
+  npx repoview [--repo /path/to/repo] [--host 0.0.0.0] [--port 3000] [--no-watch]
+  repoview [--repo /path/to/repo] [--host 0.0.0.0] [--port 3000] [--no-watch]
+  npm start -- [--repo /path/to/repo] [--host 0.0.0.0] [--port 3000] [--no-watch]
 
 Options:
-  --repo <path>     Repository root (default: REPO_ROOT or project dir)
-  --host <host>     Bind address (default: 127.0.0.1)
+  --repo <path>     Repository root (default: REPO_ROOT or current dir)
+  --host <host>     Bind address (default: 0.0.0.0)
   --port <port>     Bind port (default: 3000)
   --watch           Enable live reload (default)
   --no-watch        Disable live reload
@@ -63,11 +63,11 @@ if (port != null && !Number.isFinite(port)) {
 const repoRoot =
   repo ??
   process.env.REPO_ROOT ??
-  path.resolve(__dirname, "..");
+  process.cwd();
 
 await startServer({
   repoRoot,
   port: port || Number(process.env.PORT) || 3000,
-  host: host || process.env.HOST || "127.0.0.1",
+  host: host || process.env.HOST || "0.0.0.0",
   watch,
 });

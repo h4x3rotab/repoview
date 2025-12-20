@@ -31,6 +31,12 @@ From anywhere:
 npx repoview --repo /path/to/your/repo --port 3000
 ```
 
+By default, `repoview` binds to `0.0.0.0` (LAN-accessible). For localhost-only:
+
+```bash
+npx repoview --repo /path/to/your/repo --host 127.0.0.1 --port 3000
+```
+
 ## Why
 
 - Keep GitHub as a remote, not your developer portal.
@@ -40,7 +46,7 @@ npx repoview --repo /path/to/your/repo --port 3000
 ## Usage
 
 ```bash
-npm start -- --repo /path/to/repo [--host 127.0.0.1] [--port 3000] [--no-watch]
+npm start -- [--repo /path/to/repo] [--host 0.0.0.0] [--port 3000] [--no-watch]
 ```
 
 Common flags:
