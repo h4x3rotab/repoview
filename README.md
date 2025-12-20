@@ -41,8 +41,8 @@ Common flags:
 
 Docs:
 - `--help` for full CLI help
-- `DEVELOPMENT.md` for implementation details
-- `CONTRIBUTING.md` for contributing
+- [`DEVELOPMENT.md`](DEVELOPMENT.md) for implementation details
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) for contributing
 
 ## Share on LAN (optional)
 
