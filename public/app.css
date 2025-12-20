@@ -1,12 +1,13 @@
 :root {
   color-scheme: light;
-  --bg: #f6f8fa;
+  --bg: #ffffff;
   --panel: #ffffff;
-  --text: #1f2328;
+  --text: #24292f;
   --muted: #57606a;
   --border: #d0d7de;
+  --subtleBg: #f6f8fa;
   --btn: #f6f8fa;
-  --btnHover: #eef1f4;
+  --btnHover: #f3f4f6;
   --accent: #0969da;
 }
 
@@ -29,7 +30,7 @@ a {
 }
 
 .container {
-  padding: 12px;
+  padding: 16px;
   max-width: 980px;
   margin: 0 auto;
 }
@@ -38,7 +39,7 @@ a {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(246, 248, 250, 0.92);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: saturate(180%) blur(8px);
   border-bottom: 1px solid var(--border);
 }
@@ -105,7 +106,7 @@ a {
 
 .panel {
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 6px;
   background: var(--panel);
   overflow: hidden;
 }
@@ -120,7 +121,9 @@ a {
   gap: 10px;
   padding: 12px;
   border-bottom: 1px solid var(--border);
-  font-weight: 650;
+  background: var(--subtleBg);
+  font-weight: 600;
+  font-size: 14px;
 }
 
 .filename {
@@ -135,9 +138,9 @@ a {
 
 .btn {
   font-weight: 600;
-  font-size: 13px;
-  padding: 6px 10px;
-  border-radius: 10px;
+  font-size: 14px;
+  padding: 5px 10px;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--btn);
 }
@@ -174,8 +177,6 @@ a {
   text-align: left;
   color: var(--muted);
   font-size: 12px;
-  letter-spacing: 0.2px;
-  text-transform: uppercase;
 }
 
 .file-table.linkcheck th,
@@ -240,7 +241,7 @@ a {
 }
 
 .markdown-wrap {
-  padding: 14px 14px 18px;
+  padding: 16px;
 }
 
 .code-wrap {
@@ -249,7 +250,7 @@ a {
 
 .code-wrap pre.hljs {
   margin: 0;
-  padding: 14px;
+  padding: 16px;
   overflow: auto;
   background: #f6f8fa;
 }
@@ -257,7 +258,7 @@ a {
 .note {
   padding: 12px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 6px;
   background: #f6f8fa;
 }
 
@@ -275,7 +276,7 @@ a {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-left-width: 4px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: #f6f8fa;
 }
 
@@ -365,7 +366,7 @@ a {
 
 @media (min-width: 720px) {
   .container {
-    padding: 20px;
+    padding: 24px;
   }
   .topbar-row {
     padding-left: 20px;
