@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import http from "node:http";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -145,6 +146,12 @@ export async function startServer({ repoRoot, host, port, watch }) {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const packageRoot = path.resolve(__dirname, "..");
+  const require = createRequire(import.meta.url);
+
+  const resolvePackageDir = (name) => {
+    const pkgJson = require.resolve(`${name}/package.json`);
+    return path.dirname(pkgJson);
+  };
 
   const repoRootReal = await fs.realpath(repoRoot);
   const repoName = path.basename(repoRootReal);
@@ -162,25 +169,25 @@ export async function startServer({ repoRoot, host, port, watch }) {
   app.use("/static", express.static(publicDir, { fallthrough: true }));
   app.use(
     "/static/vendor/github-markdown-css",
-    express.static(path.join(packageRoot, "node_modules/github-markdown-css"), {
+    express.static(resolvePackageDir("github-markdown-css"), {
       fallthrough: false,
     }),
   );
   app.use(
     "/static/vendor/highlight.js",
-    express.static(path.join(packageRoot, "node_modules/highlight.js"), {
+    express.static(resolvePackageDir("highlight.js"), {
       fallthrough: false,
     }),
   );
   app.use(
     "/static/vendor/katex",
-    express.static(path.join(packageRoot, "node_modules/katex/dist"), {
+    express.static(path.join(resolvePackageDir("katex"), "dist"), {
       fallthrough: false,
     }),
   );
   app.use(
     "/static/vendor/mermaid",
-    express.static(path.join(packageRoot, "node_modules/mermaid/dist"), {
+    express.static(path.join(resolvePackageDir("mermaid"), "dist"), {
       fallthrough: false,
     }),
   );
