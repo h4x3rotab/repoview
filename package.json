@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Local GitHub-like repository browser with GitHub-style Markdown rendering and live reload.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "start": "node src/cli.js",
     "dev": "node src/cli.js --watch",
