@@ -52,7 +52,7 @@ function pageTemplate({ title, repoName, gitInfo, relPathPosix, bodyHtml }) {
   <body>
     <header class="topbar">
       <div class="topbar-row">
-        <a class="brand" href="/tree/${querySuffix || ""}">${escapeHtml(repoName)}</a>
+        <a class="brand" href="/tree/">${escapeHtml(repoName)}</a>
         <div class="meta">
           <span class="pill">${branch}</span>
           ${commit ? `<span class="pill mono">${commit}</span>` : ""}
@@ -90,6 +90,32 @@ function renderIgnoredTogglePill({ toggleIgnoredHref, showIgnored }) {
   return `<a class="pill link" data-no-preserve="ignored" href="${href}">${label}</a>`;
 }
 
+function renderMetaMenu({ gitInfo, brokenLinks, querySuffix, toggleIgnoredHref, showIgnored }) {
+  const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
+  const brokenState = brokenLinks;
+  const brokenCount = brokenState?.lastResult?.broken?.length ?? null;
+  const brokenLabel =
+    brokenState?.status === "running"
+      ? "Broken links: scanning…"
+      : brokenCount == null
+        ? "Broken links"
+        : `Broken links: ${brokenCount}`;
+  const brokenHref = `/broken-links${querySuffix || ""}`;
+  const ignoredHref = toggleIgnoredHref || "#";
+  const ignoredLabel = showIgnored ? "Hide ignored files" : "Show ignored files";
+
+  return `<details class="meta-menu">
+  <summary class="pill link" aria-label="More">More</summary>
+  <div class="menu-panel" role="menu">
+    <a class="menu-item link" href="${brokenHref}" role="menuitem">${escapeHtml(brokenLabel)}</a>
+    <a class="menu-item link" data-no-preserve="ignored" href="${ignoredHref}" role="menuitem">${escapeHtml(
+      ignoredLabel,
+    )}</a>
+    ${commit ? `<div class="menu-item mono" role="menuitem">Commit: ${commit}</div>` : ""}
+  </div>
+</details>`;
+}
+
 function pageTemplateWithLinks({
   title,
   repoName,
@@ -105,6 +131,7 @@ function pageTemplateWithLinks({
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
   const brokenPill = renderBrokenLinksPill(brokenLinks, querySuffix);
   const ignoredPill = renderIgnoredTogglePill({ toggleIgnoredHref, showIgnored });
+  const metaMenu = renderMetaMenu({ gitInfo, brokenLinks, querySuffix, toggleIgnoredHref, showIgnored });
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -119,12 +146,15 @@ function pageTemplateWithLinks({
   <body>
     <header class="topbar">
       <div class="topbar-row">
-        <a class="brand" href="/tree/">${escapeHtml(repoName)}</a>
+        <a class="brand" href="/tree/${querySuffix || ""}">${escapeHtml(repoName)}</a>
         <div class="meta">
           <span class="pill">${branch}</span>
-          ${commit ? `<span class="pill mono">${commit}</span>` : ""}
-          ${brokenPill}
-          ${ignoredPill}
+          ${commit ? `<span class="pill mono meta-commit">${commit}</span>` : ""}
+          <span class="meta-actions">
+            ${brokenPill}
+            ${ignoredPill}
+          </span>
+          ${metaMenu}
         </div>
       </div>
       ${renderBreadcrumbs(relPathPosix, querySuffix)}

@@ -54,6 +54,10 @@ a {
 .brand {
   font-weight: 700;
   letter-spacing: 0.2px;
+  max-width: 50vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .meta {
@@ -63,6 +67,50 @@ a {
   align-items: center;
   color: var(--muted);
   font-size: 13px;
+}
+
+.meta-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.meta-menu {
+  display: none;
+  position: relative;
+}
+
+.meta-menu summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.meta-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 210px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(31, 35, 40, 0.12);
+}
+
+.menu-item {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.menu-item:hover {
+  background: var(--subtleBg);
 }
 
 .pill {
@@ -383,5 +431,13 @@ a {
   .file-table th.size,
   .file-table td.size {
     display: none;
+  }
+
+  .meta-commit,
+  .meta-actions {
+    display: none;
+  }
+  .meta-menu {
+    display: inline-block;
   }
 }
