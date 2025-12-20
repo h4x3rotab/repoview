@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import chokidar from "chokidar";
 import mime from "mime-types";
@@ -141,6 +142,10 @@ function createReloadHub() {
 }
 
 export async function startServer({ repoRoot, host, port, watch }) {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const packageRoot = path.resolve(__dirname, "..");
+
   const repoRootReal = await fs.realpath(repoRoot);
   const repoName = path.basename(repoRootReal);
   const gitInfo = await getGitInfo(repoRootReal);
@@ -153,29 +158,29 @@ export async function startServer({ repoRoot, host, port, watch }) {
   const app = express();
   app.disable("x-powered-by");
 
-  const publicDir = path.join(process.cwd(), "public");
+  const publicDir = path.join(packageRoot, "public");
   app.use("/static", express.static(publicDir, { fallthrough: true }));
   app.use(
     "/static/vendor/github-markdown-css",
-    express.static(path.join(process.cwd(), "node_modules/github-markdown-css"), {
+    express.static(path.join(packageRoot, "node_modules/github-markdown-css"), {
       fallthrough: false,
     }),
   );
   app.use(
     "/static/vendor/highlight.js",
-    express.static(path.join(process.cwd(), "node_modules/highlight.js"), {
+    express.static(path.join(packageRoot, "node_modules/highlight.js"), {
       fallthrough: false,
     }),
   );
   app.use(
     "/static/vendor/katex",
-    express.static(path.join(process.cwd(), "node_modules/katex/dist"), {
+    express.static(path.join(packageRoot, "node_modules/katex/dist"), {
       fallthrough: false,
     }),
   );
   app.use(
     "/static/vendor/mermaid",
-    express.static(path.join(process.cwd(), "node_modules/mermaid/dist"), {
+    express.static(path.join(packageRoot, "node_modules/mermaid/dist"), {
       fallthrough: false,
     }),
   );
@@ -481,7 +486,7 @@ export async function startServer({ repoRoot, host, port, watch }) {
   }
 
   // eslint-disable-next-line no-console
-  console.log(`repo-viewer: ${repoRootReal}`);
+  console.log(`repoview: ${repoRootReal}`);
   // eslint-disable-next-line no-console
   console.log(`listening: http://${host}:${port}`);
 }
