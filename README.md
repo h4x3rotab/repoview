@@ -61,3 +61,7 @@ npm start -- --repo /path/to/repo --host 0.0.0.0 --port 8890
 ## Contributing
 
 - Contributing guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
