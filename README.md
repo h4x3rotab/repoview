@@ -22,6 +22,7 @@ npm start -- --repo /path/to/repo [--host 127.0.0.1] [--port 3000] [--no-watch]
 ```
 
 Options:
+- `--help`, `-h`: show help
 - `--repo`: path to the repository root (required)
 - `--host`: bind address (default: `127.0.0.1`)
 - `--port`: bind port (default: `3000`)
