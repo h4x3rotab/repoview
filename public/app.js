@@ -2,13 +2,46 @@
   const shouldWatch = new URLSearchParams(location.search).get("watch") !== "0";
   if (!shouldWatch) return;
 
-  const es = new EventSource("/events");
-  es.addEventListener("reload", () => {
-    location.reload();
-  });
-  es.addEventListener("error", () => {
-    // Best-effort: EventSource auto-reconnects.
-  });
+  let pollingTimer = null;
+  let lastRevision = null;
+
+  async function fetchRevision() {
+    const res = await fetch(`/rev?ts=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) throw new Error("rev fetch failed");
+    const json = await res.json();
+    return Number(json.revision);
+  }
+
+  async function ensurePolling() {
+    if (pollingTimer) return;
+    try {
+      lastRevision = await fetchRevision();
+    } catch {
+      lastRevision = null;
+    }
+    pollingTimer = setInterval(async () => {
+      try {
+        const rev = await fetchRevision();
+        if (lastRevision != null && rev !== lastRevision) location.reload();
+        lastRevision = rev;
+      } catch {
+        // ignore
+      }
+    }, 2000);
+  }
+
+  try {
+    const es = new EventSource("/events");
+    es.addEventListener("reload", () => {
+      location.reload();
+    });
+    es.addEventListener("error", () => {
+      // Some environments/proxies break SSE; fall back to polling.
+      void ensurePolling();
+    });
+  } catch {
+    void ensurePolling();
+  }
 })();
 
 function preserveQueryParamsOnInternalLinks(keys) {

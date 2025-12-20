@@ -119,13 +119,22 @@ function formatDate(ms) {
 
 function createReloadHub() {
   const clients = new Set();
+  let revision = 0;
   return {
     add(res) {
       clients.add(res);
       res.on("close", () => clients.delete(res));
     },
     broadcastReload() {
+      revision++;
       const payload = `event: reload\ndata: ${Date.now()}\n\n`;
+      for (const res of clients) res.write(payload);
+    },
+    getRevision() {
+      return revision;
+    },
+    broadcastPing() {
+      const payload = `event: ping\ndata: ${Date.now()}\n\n`;
       for (const res of clients) res.write(payload);
     },
   };
@@ -180,6 +189,11 @@ export async function startServer({ repoRoot, host, port, watch }) {
 
   void linkScanner.triggerScan();
 
+  app.get("/rev", (req, res) => {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.status(200).send({ revision: reloadHub.getRevision() });
+  });
+
   app.get("/broken-links.json", (req, res) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.status(200).send(linkScanner.getState());
@@ -220,6 +234,16 @@ export async function startServer({ repoRoot, host, port, watch }) {
     res.flushHeaders?.();
     res.write("event: hello\ndata: ok\n\n");
     reloadHub.add(res);
+
+    const interval = setInterval(() => {
+      try {
+        res.write(":\n\n");
+        reloadHub.broadcastPing();
+      } catch {
+        // ignore
+      }
+    }, 15000);
+    res.on("close", () => clearInterval(interval));
   });
 
   app.get(["/tree/*", "/tree"], async (req, res) => {
