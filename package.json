@@ -5,6 +5,7 @@
   "type": "module",
   "description": "GitHub-like repo browsing for local Git repositories (Markdown, live reload, broken link scanner).",
   "license": "MIT",
+  "author": "Hang Yin <hangyin@phala.com>",
   "bin": {
     "repoview": "src/cli.js"
   },
