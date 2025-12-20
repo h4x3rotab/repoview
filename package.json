@@ -1,0 +1,28 @@
+{
+  "name": "repo-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local GitHub-like repository browser with GitHub-style Markdown rendering and live reload.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "node src/cli.js",
+    "dev": "node src/cli.js --watch",
+    "lint": "node -c src/cli.js && node -c src/server.js && node -c src/markdown.js && node -c src/views.js"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "express": "^4.21.2",
+    "github-markdown-css": "^5.8.1",
+    "github-slugger": "^2.0.0",
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.22",
+    "markdown-it": "^14.1.0",
+    "markdown-it-emoji": "^3.0.0",
+    "markdown-it-footnote": "^4.0.0",
+    "markdown-it-task-lists": "^2.1.1",
+    "mermaid": "^11.12.0",
+    "mime-types": "^2.1.35",
+    "sanitize-html": "^2.17.0"
+  }
+}
