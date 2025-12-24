@@ -288,7 +288,7 @@ export function createMarkdownRenderer() {
         "input",
       ],
       allowedAttributes: {
-        "*": ["class", "id", "aria-label", "aria-hidden", "role"],
+        "*": ["class", "id", "aria-label", "aria-hidden", "role", "align"],
         a: ["href", "name", "title", "target", "rel", "tabindex"],
         img: ["src", "alt", "title", "width", "height", "loading"],
         input: ["type", "checked", "disabled"],
