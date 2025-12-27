@@ -16,6 +16,26 @@ function escapeHtml(s) {
     .replaceAll("'", "&#39;");
 }
 
+// CommonMark only allows "1." to interrupt a paragraph, but GitHub allows any number.
+// This preprocessor adds blank lines before ordered lists starting with numbers other than 1.
+function normalizeOrderedLists(text) {
+  const lines = text.split("\n");
+  const result = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const prevLine = i > 0 ? lines[i - 1] : "";
+    // Check if current line starts an ordered list with number > 1
+    if (/^[2-9]\d*\. /.test(line)) {
+      // Insert blank line if previous line is non-empty and not a list item
+      if (prevLine.trim() && !/^\d+\. /.test(prevLine) && !/^[-*+] /.test(prevLine)) {
+        result.push("");
+      }
+    }
+    result.push(line);
+  }
+  return result.join("\n");
+}
+
 function isExternalHref(href) {
   return /^(?:[a-z]+:)?\/\//i.test(href) || href.startsWith("mailto:") || href.startsWith("tel:");
 }

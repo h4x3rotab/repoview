@@ -1,6 +1,23 @@
 (() => {
   const shouldWatch = new URLSearchParams(location.search).get("watch") !== "0";
-  if (!shouldWatch) return;
+  const statusEl = document.getElementById("conn-status");
+
+  function setStatus(state) {
+    if (!statusEl) return;
+    statusEl.dataset.status = state;
+    const titles = {
+      connected: "Live reload: connected",
+      connecting: "Live reload: connecting...",
+      polling: "Live reload: polling",
+      disconnected: "Live reload: disconnected",
+    };
+    statusEl.title = titles[state] || "";
+  }
+
+  if (!shouldWatch) {
+    if (statusEl) statusEl.style.display = "none";
+    return;
+  }
 
   let pollingTimer = null;
   let lastRevision = null;
@@ -14,6 +31,7 @@
 
   async function ensurePolling() {
     if (pollingTimer) return;
+    setStatus("polling");
     try {
       lastRevision = await fetchRevision();
     } catch {
@@ -32,10 +50,14 @@
 
   try {
     const es = new EventSource("/events");
+    es.addEventListener("open", () => {
+      setStatus("connected");
+    });
     es.addEventListener("reload", () => {
       location.reload();
     });
     es.addEventListener("error", () => {
+      setStatus("disconnected");
       // Some environments/proxies break SSE; fall back to polling.
       void ensurePolling();
     });

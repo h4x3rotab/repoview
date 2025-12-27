@@ -89,6 +89,26 @@ a {
   align-items: center;
 }
 
+.conn-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+
+.conn-status[data-status="connected"] {
+  background: #2da44e;
+}
+
+.conn-status[data-status="polling"] {
+  background: #bf8700;
+}
+
+.conn-status[data-status="disconnected"] {
+  background: #cf222e;
+}
+
 .meta-menu {
   display: none;
   position: relative;

@@ -156,6 +156,7 @@ function pageTemplateWithLinks({
             ${brokenPill}
             ${ignoredPill}
           </span>
+          <span id="conn-status" class="conn-status" title="Live reload: connecting..."></span>
           ${metaMenu}
         </div>
       </div>
