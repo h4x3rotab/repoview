@@ -109,6 +109,18 @@ a {
   background: #cf222e;
 }
 
+.pdf-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.pdf-frame {
+  width: 100%;
+  height: 80vh;
+  border: none;
+  border-radius: 6px;
+}
+
 .meta-menu {
   display: none;
   position: relative;

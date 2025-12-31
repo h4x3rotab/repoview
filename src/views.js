@@ -242,6 +242,7 @@ export function renderFilePage({
   relPathPosix,
   fileName,
   isMarkdown,
+  isPdf,
   renderedHtml,
 }) {
   const relDir = path.posix.dirname(relPathPosix || "");
@@ -249,6 +250,7 @@ export function renderFilePage({
   const rawHref = `/raw/${encodePathForUrl(relPathPosix || "")}${suffix}`;
   const treeHref = `/tree/${encodePathForUrl(relDir === "." ? "" : relDir)}${suffix}`;
 
+  const wrapClass = isPdf ? "pdf-wrap" : isMarkdown ? "markdown-body markdown-wrap" : "code-wrap";
   const body = `<section class="panel">
   <div class="panel-title">
     <span class="filename">${escapeHtml(fileName)}</span>
@@ -256,7 +258,7 @@ export function renderFilePage({
     <a class="btn" href="${treeHref}">Back</a>
     <a class="btn" href="${rawHref}">Raw</a>
   </div>
-  <div class="${isMarkdown ? "markdown-body markdown-wrap" : "code-wrap"}">
+  <div class="${wrapClass}">
     ${renderedHtml}
   </div>
 </section>`;

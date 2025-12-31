@@ -388,7 +388,28 @@ export async function startServer({ repoRoot, host, port, watch }) {
       const fileName = path.basename(resolved);
       const ext = path.extname(fileName).toLowerCase();
       const isMarkdown = [".md", ".markdown", ".mdown", ".mkd", ".mkdn"].includes(ext);
+      const isPdf = ext === ".pdf";
       const maxBytes = 2 * 1024 * 1024;
+
+      if (isPdf) {
+        res.status(200).send(
+          renderFilePage({
+            title: `${repoName}/${stripped}`,
+            repoName,
+            gitInfo,
+            brokenLinks: linkScanner.getState(),
+            relPathPosix: toPosixPath(stripped),
+            querySuffix,
+            toggleIgnoredHref,
+            showIgnored,
+            fileName,
+            isMarkdown: false,
+            isPdf: true,
+            renderedHtml: `<iframe class="pdf-frame" src="/raw/${encodePathForUrl(toPosixPath(stripped))}"></iframe>`,
+          }),
+        );
+        return;
+      }
 
       if (st.size > maxBytes) {
         res.status(200).send(
