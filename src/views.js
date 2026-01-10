@@ -1,6 +1,6 @@
 import path from "node:path";
 
-function escapeHtml(s) {
+export function escapeHtml(s) {
   return String(s)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -242,7 +242,7 @@ export function renderFilePage({
   relPathPosix,
   fileName,
   isMarkdown,
-  isPdf,
+  mediaType,
   renderedHtml,
 }) {
   const relDir = path.posix.dirname(relPathPosix || "");
@@ -250,7 +250,7 @@ export function renderFilePage({
   const rawHref = `/raw/${encodePathForUrl(relPathPosix || "")}${suffix}`;
   const treeHref = `/tree/${encodePathForUrl(relDir === "." ? "" : relDir)}${suffix}`;
 
-  const wrapClass = isPdf ? "pdf-wrap" : isMarkdown ? "markdown-body markdown-wrap" : "code-wrap";
+  const wrapClass = mediaType ? `${mediaType}-wrap` : isMarkdown ? "markdown-body markdown-wrap" : "code-wrap";
   const body = `<section class="panel">
   <div class="panel-title">
     <span class="filename">${escapeHtml(fileName)}</span>

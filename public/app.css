@@ -121,6 +121,22 @@ a {
   border-radius: 6px;
 }
 
+.image-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  background: var(--subtleBg);
+  border-radius: 6px;
+  min-height: 200px;
+}
+
+.image-preview {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+}
+
 .meta-menu {
   display: none;
   position: relative;

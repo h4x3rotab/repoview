@@ -12,6 +12,7 @@ import { createMarkdownRenderer } from "./markdown.js";
 import { loadGitIgnoreMatcher } from "./gitignore.js";
 import { createRepoLinkScanner } from "./linkcheck.js";
 import {
+  escapeHtml,
   renderBrokenLinksPage,
   renderErrorPage,
   renderFilePage,
@@ -389,7 +390,9 @@ export async function startServer({ repoRoot, host, port, watch }) {
       const ext = path.extname(fileName).toLowerCase();
       const isMarkdown = [".md", ".markdown", ".mdown", ".mkd", ".mkdn"].includes(ext);
       const isPdf = ext === ".pdf";
+      const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp"].includes(ext);
       const maxBytes = 2 * 1024 * 1024;
+      const rawSrc = `/raw/${encodePathForUrl(toPosixPath(stripped))}`;
 
       if (isPdf) {
         res.status(200).send(
@@ -404,8 +407,28 @@ export async function startServer({ repoRoot, host, port, watch }) {
             showIgnored,
             fileName,
             isMarkdown: false,
-            isPdf: true,
-            renderedHtml: `<iframe class="pdf-frame" src="/raw/${encodePathForUrl(toPosixPath(stripped))}"></iframe>`,
+            mediaType: "pdf",
+            renderedHtml: `<iframe class="pdf-frame" src="${rawSrc}"></iframe>`,
+          }),
+        );
+        return;
+      }
+
+      if (isImage) {
+        res.status(200).send(
+          renderFilePage({
+            title: `${repoName}/${stripped}`,
+            repoName,
+            gitInfo,
+            brokenLinks: linkScanner.getState(),
+            relPathPosix: toPosixPath(stripped),
+            querySuffix,
+            toggleIgnoredHref,
+            showIgnored,
+            fileName,
+            isMarkdown: false,
+            mediaType: "image",
+            renderedHtml: `<img class="image-preview" src="${rawSrc}" alt="${escapeHtml(fileName)}" />`,
           }),
         );
         return;
