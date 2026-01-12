@@ -188,9 +188,10 @@ export function renderTreePage({
     .map((r) => {
       const icon = r.isDir ? "dir" : "file";
       const name = escapeHtml(r.name);
+      const tsAttr = r.mtimeMs ? ` data-ts="${r.mtimeMs}"` : "";
       return `<tr>
   <td class="name"><a class="item ${icon}" href="${r.href}">${name}</a></td>
-  <td class="mtime">${escapeHtml(r.mtime)}</td>
+  <td class="mtime"${tsAttr}>${escapeHtml(r.mtime)}</td>
   <td class="size">${escapeHtml(r.size)}</td>
 </tr>`;
     })
@@ -208,7 +209,7 @@ export function renderTreePage({
   <div class="table-wrap">
     <table class="file-table">
       <thead>
-        <tr><th class="name">Name</th><th class="mtime">Last modified</th><th class="size">Size</th></tr>
+        <tr><th class="name">Name</th><th class="mtime">Last modified <button type="button" class="tz-toggle" title="Toggle local/UTC time">Local</button></th><th class="size">Size</th></tr>
       </thead>
       <tbody>
         ${tableRows || `<tr><td colspan="3" class="empty">Empty directory</td></tr>`}

@@ -135,8 +135,49 @@ function renderMath() {
   }
 }
 
+function formatDateTime(ms, useUtc) {
+  const d = new Date(ms);
+  const opts = {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: useUtc ? "UTC" : undefined,
+  };
+  const formatted = d.toLocaleString(undefined, opts);
+  return useUtc ? `${formatted} UTC` : formatted;
+}
+
+function initTimezoneToggle() {
+  const toggle = document.querySelector(".tz-toggle");
+  if (!toggle) return;
+
+  const cells = document.querySelectorAll(".mtime[data-ts]");
+  if (!cells.length) return;
+
+  let useUtc = localStorage.getItem("tz") === "utc";
+
+  function update() {
+    toggle.textContent = useUtc ? "UTC" : "Local";
+    for (const cell of cells) {
+      const ts = Number(cell.dataset.ts);
+      if (ts) cell.textContent = formatDateTime(ts, useUtc);
+    }
+  }
+
+  toggle.addEventListener("click", () => {
+    useUtc = !useUtc;
+    localStorage.setItem("tz", useUtc ? "utc" : "local");
+    update();
+  });
+
+  update();
+}
+
 window.addEventListener("load", () => {
   preserveQueryParamsOnInternalLinks(["ignored", "watch"]);
   renderMath();
   renderMermaid();
+  initTimezoneToggle();
 });

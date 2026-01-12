@@ -369,6 +369,7 @@ export async function startServer({ repoRoot, host, port, watch }) {
               href,
               size: isDir ? "" : formatBytes(info.size),
               mtime: formatDate(info.mtimeMs),
+              mtimeMs: info.mtimeMs,
             };
           }),
       );
