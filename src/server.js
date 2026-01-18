@@ -144,13 +144,20 @@ async function safeRealpath(rootReal, requestPath) {
 }
 
 async function statSafe(p, { followSymlinks = true } = {}) {
-  const stat = followSymlinks ? await fs.stat(p) : await fs.lstat(p);
-  return {
-    isFile: stat.isFile(),
-    isDir: stat.isDirectory(),
-    size: stat.size,
-    mtimeMs: stat.mtimeMs,
-  };
+  try {
+    const stat = followSymlinks ? await fs.stat(p) : await fs.lstat(p);
+    return {
+      isFile: stat.isFile(),
+      isDir: stat.isDirectory(),
+      size: stat.size,
+      mtimeMs: stat.mtimeMs,
+    };
+  } catch (e) {
+    if (e.code === "EACCES" || e.code === "EPERM") {
+      return null;
+    }
+    throw e;
+  }
 }
 
 function formatBytes(bytes) {
@@ -336,43 +343,61 @@ export async function startServer({ repoRoot, host, port, watch }) {
         toPosixPath(stripped),
       )}${toggleIgnoredSuffix}`;
       const st = await statSafe(resolved);
+      if (st === null) {
+        const err = new Error("Permission denied");
+        err.statusCode = 403;
+        throw err;
+      }
       if (st.isFile)
         return res.redirect(
           `/blob/${encodePathForUrl(toPosixPath(stripped))}${querySuffix}`,
         );
 
-      const entries = await fs.readdir(resolved, { withFileTypes: true });
+      let entries;
+      try {
+        entries = await fs.readdir(resolved, { withFileTypes: true });
+      } catch (e) {
+        if (e.code === "EACCES" || e.code === "EPERM") {
+          const err = new Error("Permission denied");
+          err.statusCode = 403;
+          throw err;
+        }
+        throw e;
+      }
       const readmeEntry = entries.find(
         (e) =>
           e.isFile() &&
           /^readme(?:\.(?:md|markdown|mdown|mkd|mkdn))?$/i.test(e.name),
       );
-      const rows = await Promise.all(
-        entries
-          .filter((e) => {
-            if (e.name === ".git") return false;
-            if (showIgnored) return true;
-            const relPosix = toPosixPath(path.posix.join(toPosixPath(stripped), e.name));
-            return !ignoreMatcher.ignores(relPosix, { isDir: e.isDirectory() });
-          })
-          .map(async (e) => {
-            const relPosix = toPosixPath(path.posix.join(toPosixPath(stripped), e.name));
-            const full = path.join(resolved, e.name);
-            const info = await statSafe(full, { followSymlinks: false });
-            const isDir = e.isDirectory();
-            const href = isDir
-              ? `/tree/${encodePathForUrl(relPosix)}${querySuffix}`
-              : `/blob/${encodePathForUrl(relPosix)}${querySuffix}`;
-            return {
-              name: e.name,
-              isDir,
-              href,
-              size: isDir ? "" : formatBytes(info.size),
-              mtime: formatDate(info.mtimeMs),
-              mtimeMs: info.mtimeMs,
-            };
-          }),
-      );
+      const rows = (
+        await Promise.all(
+          entries
+            .filter((e) => {
+              if (e.name === ".git") return false;
+              if (showIgnored) return true;
+              const relPosix = toPosixPath(path.posix.join(toPosixPath(stripped), e.name));
+              return !ignoreMatcher.ignores(relPosix, { isDir: e.isDirectory() });
+            })
+            .map(async (e) => {
+              const relPosix = toPosixPath(path.posix.join(toPosixPath(stripped), e.name));
+              const full = path.join(resolved, e.name);
+              const info = await statSafe(full, { followSymlinks: false });
+              if (info === null) return null;
+              const isDir = e.isDirectory();
+              const href = isDir
+                ? `/tree/${encodePathForUrl(relPosix)}${querySuffix}`
+                : `/blob/${encodePathForUrl(relPosix)}${querySuffix}`;
+              return {
+                name: e.name,
+                isDir,
+                href,
+                size: isDir ? "" : formatBytes(info.size),
+                mtime: formatDate(info.mtimeMs),
+                mtimeMs: info.mtimeMs,
+              };
+            }),
+        )
+      ).filter((row) => row !== null);
 
       rows.sort((a, b) => {
         if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
@@ -439,6 +464,11 @@ export async function startServer({ repoRoot, host, port, watch }) {
         toPosixPath(stripped),
       )}${toggleIgnoredSuffix}`;
       const st = await statSafe(resolved);
+      if (st === null) {
+        const err = new Error("Permission denied");
+        err.statusCode = 403;
+        throw err;
+      }
       if (st.isDir)
         return res.redirect(
           `/tree/${encodePathForUrl(toPosixPath(stripped))}${querySuffix}`,
@@ -563,6 +593,11 @@ export async function startServer({ repoRoot, host, port, watch }) {
       const p = req.params[0] ?? "";
       const { resolved } = await safeRealpath(repoRootReal, p);
       const st = await statSafe(resolved);
+      if (st === null) {
+        const err = new Error("Permission denied");
+        err.statusCode = 403;
+        throw err;
+      }
       if (!st.isFile) {
         const err = new Error("Not a file");
         err.statusCode = 400;
@@ -589,6 +624,10 @@ export async function startServer({ repoRoot, host, port, watch }) {
         /(^|[/\\])node_modules([/\\]|$)/,
       ],
       ignoreInitial: true,
+      ignorePermissionErrors: true,
+    });
+    watcher.on("error", () => {
+      // Silently ignore watch errors (e.g., permission denied)
     });
     let pending = null;
     watcher.on("all", () => {
