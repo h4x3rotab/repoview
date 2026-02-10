@@ -105,9 +105,12 @@ function renderMetaMenu({ gitInfo, brokenLinks, querySuffix, toggleIgnoredHref, 
   const ignoredHref = toggleIgnoredHref || "#";
   const ignoredLabel = showIgnored ? "Hide ignored files" : "Show ignored files";
 
+  const diffHref = `/diff${querySuffix || ""}`;
+
   return `<details class="meta-menu">
   <summary class="pill link" aria-label="More">More</summary>
   <div class="menu-panel" role="menu">
+    <a class="menu-item link" href="${diffHref}" role="menuitem">Diff view</a>
     <a class="menu-item link" href="${brokenHref}" role="menuitem">${escapeHtml(brokenLabel)}</a>
     <a class="menu-item link" data-no-preserve="ignored" href="${ignoredHref}" role="menuitem">${escapeHtml(
       ignoredLabel,
@@ -153,6 +156,7 @@ function pageTemplateWithLinks({
           <span class="pill">${branch}</span>
           ${commit ? `<span class="pill mono meta-commit">${commit}</span>` : ""}
           <span class="meta-actions">
+            <a class="pill link" href="/diff${querySuffix || ""}">Diff</a>
             ${brokenPill}
             ${ignoredPill}
           </span>
@@ -275,6 +279,89 @@ export function renderFilePage({
     relPathPosix,
     bodyHtml: body,
   });
+}
+
+export function renderDiffPage({
+  title,
+  repoName,
+  gitInfo,
+  relPathPosix,
+  querySuffix,
+  base,
+  branches,
+  tags,
+  diffHtml,
+  tooLarge,
+  empty,
+}) {
+  const branchOptions = branches
+    .map((b) => {
+      const sel = b === base ? " selected" : "";
+      return `<option value="${escapeHtml(b)}"${sel}>${escapeHtml(b)}</option>`;
+    })
+    .join("\n");
+  const tagOptions = tags
+    .map((t) => {
+      const sel = t === base ? " selected" : "";
+      return `<option value="${escapeHtml(t)}"${sel}>${escapeHtml(t)}</option>`;
+    })
+    .join("\n");
+  const headSelected = base === "HEAD" ? " selected" : "";
+
+  const selector = `<select id="base-selector" class="base-selector">
+    <option value="HEAD"${headSelected}>HEAD</option>
+    ${branches.length ? `<optgroup label="Branches">${branchOptions}</optgroup>` : ""}
+    ${tags.length ? `<optgroup label="Tags">${tagOptions}</optgroup>` : ""}
+  </select>`;
+
+  let content = "";
+  if (tooLarge) {
+    content = `<div class="diff-empty note">Diff output exceeded 512KB and was truncated. Try narrowing the comparison range.</div>`;
+  } else if (empty) {
+    content = `<div class="diff-empty note">No changes found.</div>`;
+  } else {
+    content = diffHtml;
+  }
+
+  const body = `<section class="panel">
+  <div class="panel-title">
+    <span>Compare working tree against</span>
+    ${selector}
+    <span class="spacer"></span>
+    <a class="btn" href="/tree/${querySuffix || ""}">Back</a>
+  </div>
+  <div class="diff-wrap">
+    ${content}
+  </div>
+</section>`;
+
+  const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
+  const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title)}</title>
+    <link rel="stylesheet" href="/static/vendor/diff2html/diff2html.min.css" />
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-row">
+        <a class="brand" href="/tree/${querySuffix || ""}">${escapeHtml(repoName)}</a>
+        <div class="meta">
+          <span class="pill">${branch}</span>
+          ${commit ? `<span class="pill mono">${commit}</span>` : ""}
+        </div>
+      </div>
+    </header>
+    <main class="container">
+      ${body}
+    </main>
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>`;
 }
 
 export function renderErrorPage({ title, message }) {

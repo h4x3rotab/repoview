@@ -1,6 +1,6 @@
 {
   "name": "repoview",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
   "type": "module",
   "description": "GitHub-like repo browsing for local Git repositories (Markdown, live reload, broken link scanner).",
@@ -44,6 +44,7 @@
   },
   "dependencies": {
     "chokidar": "^4.0.3",
+    "diff2html": "^3.4.56",
     "express": "^4.21.2",
     "github-markdown-css": "^5.8.1",
     "github-slugger": "^2.0.0",

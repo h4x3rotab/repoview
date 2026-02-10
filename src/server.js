@@ -11,9 +11,11 @@ import mime from "mime-types";
 import { createMarkdownRenderer } from "./markdown.js";
 import { loadGitIgnoreMatcher } from "./gitignore.js";
 import { createRepoLinkScanner } from "./linkcheck.js";
+import diff2html from "diff2html";
 import {
   escapeHtml,
   renderBrokenLinksPage,
+  renderDiffPage,
   renderErrorPage,
   renderFilePage,
   renderTreePage,
@@ -93,6 +95,51 @@ function renderCsvTable(rows, escFn) {
   return `<div class="csv-table-wrap"><table class="csv-table"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
 }
 
+function execGit(repoRootReal, args, maxBytes = 1024 * 1024) {
+  return new Promise((resolve) => {
+    const child = spawn("git", args, { cwd: repoRootReal });
+    let out = "";
+    let size = 0;
+    let killed = false;
+    child.stdout.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        if (!killed) { killed = true; child.kill(); }
+        return;
+      }
+      out += String(chunk);
+    });
+    child.on("close", (code) => {
+      if (killed) return resolve({ output: out, tooLarge: true, code });
+      resolve({ output: code === 0 ? out.trim() : null, tooLarge: false, code });
+    });
+    child.on("error", () => resolve({ output: null, tooLarge: false, code: -1 }));
+  });
+}
+
+function validateGitRef(ref) {
+  if (!ref || typeof ref !== "string") return false;
+  return /^[a-zA-Z0-9_.\/\-~^]+$/.test(ref);
+}
+
+async function getGitBranches(repoRootReal) {
+  const { output } = await execGit(repoRootReal, ["branch", "--format=%(refname:short)"]);
+  if (!output) return [];
+  return output.split("\n").filter(Boolean);
+}
+
+async function getGitTags(repoRootReal) {
+  const { output } = await execGit(repoRootReal, ["tag", "-l"]);
+  if (!output) return [];
+  return output.split("\n").filter(Boolean);
+}
+
+async function getGitDiffRaw(repoRootReal, base) {
+  const maxBytes = 512 * 1024;
+  const { output, tooLarge } = await execGit(repoRootReal, ["diff", base], maxBytes);
+  return { raw: output || "", tooLarge };
+}
+
 async function getGitInfo(repoRootReal) {
   const gitDir = path.join(repoRootReal, ".git");
   try {
@@ -102,20 +149,12 @@ async function getGitInfo(repoRootReal) {
     return { branch: null, commit: null };
   }
 
-  const execGit = async (args) => {
-    return await new Promise((resolve) => {
-      const child = spawn("git", args, { cwd: repoRootReal });
-      let out = "";
-      child.stdout.on("data", (chunk) => (out += String(chunk)));
-      child.on("close", (code) => resolve(code === 0 ? out.trim() : null));
-      child.on("error", () => resolve(null));
-    });
-  };
-
-  const [branch, commit] = await Promise.all([
-    execGit(["rev-parse", "--abbrev-ref", "HEAD"]),
-    execGit(["rev-parse", "HEAD"]),
+  const [branchResult, commitResult] = await Promise.all([
+    execGit(repoRootReal, ["rev-parse", "--abbrev-ref", "HEAD"]),
+    execGit(repoRootReal, ["rev-parse", "HEAD"]),
   ]);
+  const branch = branchResult.output;
+  const commit = commitResult.output;
   return { branch: branch && branch !== "HEAD" ? branch : branch, commit };
 }
 
@@ -256,6 +295,12 @@ export async function startServer({ repoRoot, host, port, watch }) {
       fallthrough: false,
     }),
   );
+  app.use(
+    "/static/vendor/diff2html",
+    express.static(path.join(resolvePackageDir("diff2html"), "bundles", "css"), {
+      fallthrough: false,
+    }),
+  );
 
   app.use((req, res, next) => {
     if (!req.path.startsWith("/static/")) res.setHeader("Cache-Control", "no-store");
@@ -321,6 +366,63 @@ export async function startServer({ repoRoot, host, port, watch }) {
       }
     }, 15000);
     res.on("close", () => clearInterval(interval));
+  });
+
+  app.get("/diff", async (req, res) => {
+    try {
+      const base = req.query.base || "HEAD";
+      if (!validateGitRef(base)) {
+        const err = new Error("Invalid base ref");
+        err.statusCode = 400;
+        throw err;
+      }
+
+      if (!gitInfo.commit) {
+        const err = new Error("Not a git repository");
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const query = new URLSearchParams();
+      if (req.query.watch === "0") query.set("watch", "0");
+      if (req.query.ignored === "1") query.set("ignored", "1");
+      if (base !== "HEAD") query.set("base", base);
+      const querySuffix = query.toString() ? `?${query.toString()}` : "";
+
+      const [branches, tags, diffResult] = await Promise.all([
+        getGitBranches(repoRootReal),
+        getGitTags(repoRootReal),
+        getGitDiffRaw(repoRootReal, base),
+      ]);
+
+      let diffHtml = "";
+      if (!diffResult.tooLarge && diffResult.raw) {
+        diffHtml = diff2html.html(diffResult.raw, {
+          outputFormat: "line-by-line",
+          drawFileList: true,
+        });
+      }
+
+      res.status(200).send(
+        renderDiffPage({
+          title: `${repoName} · Diff`,
+          repoName,
+          gitInfo,
+          relPathPosix: "",
+          querySuffix,
+          base,
+          branches,
+          tags,
+          diffHtml,
+          tooLarge: diffResult.tooLarge,
+          empty: !diffResult.raw,
+        }),
+      );
+    } catch (e) {
+      res
+        .status(e.statusCode || 500)
+        .send(renderErrorPage({ title: "Error", message: e.message }));
+    }
   });
 
   app.get(["/tree/*", "/tree"], async (req, res) => {

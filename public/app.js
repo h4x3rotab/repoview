@@ -180,9 +180,52 @@ function initTimezoneToggle() {
   update();
 }
 
+function initDiffCollapse() {
+  const wrappers = document.querySelectorAll(".d2h-file-wrapper");
+  if (!wrappers.length) return;
+
+  for (const wrapper of wrappers) {
+    const header = wrapper.querySelector(".d2h-file-header");
+    const diff = wrapper.querySelector(".d2h-file-diff");
+    if (!header || !diff) continue;
+
+    const toggle = document.createElement("button");
+    toggle.className = "diff-toggle";
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", "true");
+    toggle.setAttribute("aria-label", "Toggle file diff");
+    toggle.textContent = "\u25BE";
+    header.appendChild(toggle);
+
+    header.addEventListener("click", (e) => {
+      if (e.target.closest("a")) return;
+      const expanded = toggle.getAttribute("aria-expanded") === "true";
+      toggle.setAttribute("aria-expanded", String(!expanded));
+      toggle.textContent = expanded ? "\u25B8" : "\u25BE";
+      diff.hidden = expanded;
+    });
+  }
+}
+
+function initBaseSelector() {
+  const sel = document.getElementById("base-selector");
+  if (!sel) return;
+  sel.addEventListener("change", () => {
+    const u = new URL(location.href);
+    if (sel.value === "HEAD") {
+      u.searchParams.delete("base");
+    } else {
+      u.searchParams.set("base", sel.value);
+    }
+    location.href = u.pathname + u.search;
+  });
+}
+
 window.addEventListener("load", () => {
-  preserveQueryParamsOnInternalLinks(["ignored", "watch"]);
+  preserveQueryParamsOnInternalLinks(["ignored", "watch", "base"]);
   renderMath();
   renderMermaid();
   initTimezoneToggle();
+  initBaseSelector();
+  initDiffCollapse();
 });

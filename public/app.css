@@ -543,6 +543,305 @@ a {
   }
 }
 
+.base-selector {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--btn);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.base-selector:hover {
+  background: var(--btnHover);
+}
+
+.diff-wrap {
+  overflow-x: auto;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.diff-empty {
+  margin: 12px;
+}
+
+/* diff2html theme overrides */
+.d2h-wrapper {
+  border: none;
+}
+
+/* --- File list panel --- */
+.d2h-file-list-wrapper {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.d2h-file-list-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--subtleBg);
+  border-bottom: 1px solid var(--border);
+}
+
+.d2h-file-list-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.d2h-file-switch {
+  display: none;
+}
+
+.d2h-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.d2h-file-list-line {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.d2h-file-list-line:last-child {
+  border-bottom: none;
+}
+
+.d2h-file-list-line:hover {
+  background: var(--subtleBg);
+}
+
+.d2h-file-name-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.d2h-file-list-line .d2h-file-name {
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.d2h-file-list-line .d2h-file-name:hover {
+  text-decoration: underline;
+}
+
+.d2h-file-stats {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.d2h-lines-added {
+  color: #1a7f37;
+}
+
+.d2h-lines-deleted {
+  color: #cf222e;
+}
+
+.d2h-file-list-line .d2h-icon {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+/* --- Individual file diffs --- */
+.d2h-file-wrapper {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.d2h-file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--subtleBg);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.d2h-file-header:hover {
+  background: var(--btnHover);
+}
+
+.d2h-file-header .d2h-file-name-wrapper {
+  gap: 8px;
+}
+
+.d2h-file-header .d2h-file-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.d2h-file-header .d2h-tag {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--btn);
+  color: var(--muted);
+}
+
+.d2h-file-collapse {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--btn);
+}
+
+.d2h-file-collapse:hover {
+  background: var(--btnHover);
+  color: var(--text);
+}
+
+.d2h-file-collapse,
+.d2h-file-collapse-input {
+  display: none;
+}
+
+/* Collapse toggle button (injected by JS) */
+.diff-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--btn);
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.diff-toggle:hover {
+  background: var(--btnHover);
+  color: var(--text);
+}
+
+.diff-toggle[aria-expanded="false"] {
+  transform: rotate(-90deg);
+}
+
+.d2h-file-diff[hidden] {
+  display: none;
+}
+
+.d2h-file-diff {
+  border-color: var(--border);
+}
+
+.d2h-info {
+  background: var(--subtleBg);
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+@media (prefers-color-scheme: dark) {
+  .d2h-lines-added {
+    color: #3fb950;
+  }
+
+  .d2h-lines-deleted {
+    color: #f85149;
+  }
+
+  .d2h-code-line,
+  .d2h-code-side-line {
+    background: var(--panel);
+    color: var(--text);
+  }
+
+  .d2h-code-line-ctn {
+    color: var(--text);
+  }
+
+  .d2h-file-diff .d2h-del.d2h-change,
+  .d2h-file-diff .d2h-del {
+    background-color: rgba(248, 81, 73, 0.1);
+  }
+
+  .d2h-file-diff .d2h-ins.d2h-change,
+  .d2h-file-diff .d2h-ins {
+    background-color: rgba(63, 185, 80, 0.1);
+  }
+
+  .d2h-del .d2h-code-line-ctn {
+    background-color: rgba(248, 81, 73, 0.15);
+  }
+
+  .d2h-ins .d2h-code-line-ctn {
+    background-color: rgba(63, 185, 80, 0.15);
+  }
+
+  .d2h-code-linenumber {
+    background: var(--panel);
+    color: var(--muted);
+    border-color: var(--border);
+  }
+
+  .d2h-del .d2h-code-linenumber {
+    background-color: rgba(248, 81, 73, 0.1);
+    border-color: var(--border);
+  }
+
+  .d2h-ins .d2h-code-linenumber {
+    background-color: rgba(63, 185, 80, 0.1);
+    border-color: var(--border);
+  }
+}
+
+/* Normalize diff2html font sizes to prevent iOS text inflation */
+.d2h-code-linenumber,
+.d2h-code-line-ctn,
+.d2h-code-line-prefix {
+  font-size: 13px !important;
+}
+
+.d2h-tag {
+  font-size: 11px;
+}
+
 @media (max-width: 560px) {
   .file-table {
     min-width: 0;
@@ -560,5 +859,40 @@ a {
   }
   .meta-menu {
     display: inline-block;
+  }
+
+  /* Diff mobile overrides */
+  .d2h-file-list-wrapper {
+    margin-bottom: 12px;
+  }
+
+  .d2h-file-list-line {
+    padding: 6px 10px;
+  }
+
+  .d2h-file-header {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .d2h-file-header .d2h-file-name {
+    font-size: 12px;
+  }
+
+  .d2h-code-linenumber {
+    padding: 0 4px !important;
+    min-width: 28px;
+  }
+
+  .d2h-code-line-ctn {
+    font-size: 12px !important;
+  }
+
+  .d2h-code-line-prefix {
+    font-size: 12px !important;
+  }
+
+  .d2h-file-wrapper {
+    margin-bottom: 10px;
   }
 }
