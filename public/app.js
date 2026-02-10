@@ -106,7 +106,12 @@ async function renderMermaid() {
   try {
     const mod = await import("/static/vendor/mermaid/mermaid.esm.min.mjs");
     const mermaid = mod.default ?? mod.mermaid ?? mod;
-    mermaid.initialize?.({ startOnLoad: false, securityLevel: "strict" });
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    mermaid.initialize?.({
+      startOnLoad: false,
+      securityLevel: "strict",
+      theme: isDark ? "dark" : "default",
+    });
     if (typeof mermaid.run === "function") {
       await mermaid.run({ nodes });
     }
