@@ -293,6 +293,8 @@ export function renderDiffPage({
   diffHtml,
   tooLarge,
   empty,
+  fileCount,
+  showAll,
 }) {
   const branchOptions = branches
     .map((b) => {
@@ -323,6 +325,16 @@ export function renderDiffPage({
     content = diffHtml;
   }
 
+  const MAX_DIFF_FILES = 30;
+  let truncatedMsg = "";
+  if (fileCount > MAX_DIFF_FILES && !showAll) {
+    const hidden = fileCount - MAX_DIFF_FILES;
+    const showAllQuery = new URLSearchParams(querySuffix ? querySuffix.slice(1) : "");
+    showAllQuery.set("show_all", "1");
+    const showAllHref = `/diff?${showAllQuery.toString()}`;
+    truncatedMsg = `<div class="diff-truncated note">${hidden} more file${hidden === 1 ? "" : "s"} not shown. <a class="link" href="${showAllHref}">Show all ${fileCount} files</a></div>`;
+  }
+
   const body = `<section class="panel">
   <div class="panel-title">
     <span>Compare working tree against</span>
@@ -332,6 +344,7 @@ export function renderDiffPage({
   </div>
   <div class="diff-wrap">
     ${content}
+    ${truncatedMsg}
   </div>
 </section>`;
 

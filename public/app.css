@@ -564,6 +564,36 @@ a {
   text-size-adjust: 100%;
 }
 
+.diff-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.btn-sm {
+  font-weight: 600;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--btn);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn-sm:hover {
+  background: var(--btnHover);
+}
+
+.diff-truncated {
+  margin: 12px 14px;
+}
+
 .diff-empty {
   margin: 12px;
 }
@@ -701,6 +731,16 @@ a {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
   font-weight: 600;
+  white-space: normal;
+  word-break: break-all;
+}
+
+.diff-file-link {
+  color: var(--accent);
+}
+
+.diff-file-link:hover {
+  text-decoration: underline;
 }
 
 .d2h-file-header .d2h-tag {
@@ -763,7 +803,8 @@ a {
   transform: rotate(-90deg);
 }
 
-.d2h-file-diff[hidden] {
+/* Diffs start hidden; JS adds .expanded to show them */
+.d2h-file-diff:not(.expanded) {
   display: none;
 }
 

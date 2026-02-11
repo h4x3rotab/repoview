@@ -387,6 +387,7 @@ export async function startServer({ repoRoot, host, port, watch }) {
       if (req.query.watch === "0") query.set("watch", "0");
       if (req.query.ignored === "1") query.set("ignored", "1");
       if (base !== "HEAD") query.set("base", base);
+      if (req.query.show_all === "1") query.set("show_all", "1");
       const querySuffix = query.toString() ? `?${query.toString()}` : "";
 
       const [branches, tags, diffResult] = await Promise.all([
@@ -395,9 +396,17 @@ export async function startServer({ repoRoot, host, port, watch }) {
         getGitDiffRaw(repoRootReal, base),
       ]);
 
+      const MAX_DIFF_FILES = 30;
       let diffHtml = "";
+      let fileCount = 0;
+      const showAll = req.query.show_all === "1";
       if (!diffResult.tooLarge && diffResult.raw) {
-        diffHtml = diff2html.html(diffResult.raw, {
+        const parsed = diff2html.parse(diffResult.raw);
+        fileCount = parsed.length;
+        const toRender = (!showAll && parsed.length > MAX_DIFF_FILES)
+          ? parsed.slice(0, MAX_DIFF_FILES)
+          : parsed;
+        diffHtml = diff2html.html(toRender, {
           outputFormat: "line-by-line",
           drawFileList: true,
         });
@@ -416,6 +425,8 @@ export async function startServer({ repoRoot, host, port, watch }) {
           diffHtml,
           tooLarge: diffResult.tooLarge,
           empty: !diffResult.raw,
+          fileCount,
+          showAll,
         }),
       );
     } catch (e) {

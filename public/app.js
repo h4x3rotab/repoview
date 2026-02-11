@@ -184,17 +184,50 @@ function initDiffCollapse() {
   const wrappers = document.querySelectorAll(".d2h-file-wrapper");
   if (!wrappers.length) return;
 
+  // Diffs are hidden by CSS by default (.d2h-file-diff:not(.expanded)).
+  // Only expand when there are few files — avoids layout/paint cost for large diffs.
+  const shouldExpand = wrappers.length <= 8;
+
+  // Add expand/collapse all buttons
+  const diffWrap = document.querySelector(".diff-wrap");
+  if (diffWrap && wrappers.length > 1) {
+    const bar = document.createElement("div");
+    bar.className = "diff-actions";
+    bar.innerHTML = `<button type="button" class="btn btn-sm" id="expand-all">Expand all</button>
+      <button type="button" class="btn btn-sm" id="collapse-all">Collapse all</button>`;
+    diffWrap.insertBefore(bar, diffWrap.firstChild);
+  }
+
   for (const wrapper of wrappers) {
     const header = wrapper.querySelector(".d2h-file-header");
     const diff = wrapper.querySelector(".d2h-file-diff");
     if (!header || !diff) continue;
 
+    const fileNameEl = header.querySelector(".d2h-file-name");
+    if (fileNameEl && !fileNameEl.querySelector("a")) {
+      const rawName = fileNameEl.textContent.trim();
+      const name = rawName.includes(" → ") ? rawName.split(" → ").pop() : rawName;
+      const link = document.createElement("a");
+      link.className = "diff-file-link";
+      link.href = `/blob/${encodeURI(name)}`;
+      link.textContent = rawName;
+      fileNameEl.textContent = "";
+      fileNameEl.appendChild(link);
+    }
+
     const toggle = document.createElement("button");
     toggle.className = "diff-toggle";
     toggle.type = "button";
-    toggle.setAttribute("aria-expanded", "true");
     toggle.setAttribute("aria-label", "Toggle file diff");
-    toggle.textContent = "\u25BE";
+
+    if (shouldExpand) {
+      toggle.setAttribute("aria-expanded", "true");
+      toggle.textContent = "\u25BE";
+      diff.classList.add("expanded");
+    } else {
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.textContent = "\u25B8";
+    }
     header.appendChild(toggle);
 
     header.addEventListener("click", (e) => {
@@ -202,9 +235,31 @@ function initDiffCollapse() {
       const expanded = toggle.getAttribute("aria-expanded") === "true";
       toggle.setAttribute("aria-expanded", String(!expanded));
       toggle.textContent = expanded ? "\u25B8" : "\u25BE";
-      diff.hidden = expanded;
+      diff.classList.toggle("expanded");
     });
   }
+
+  document.getElementById("expand-all")?.addEventListener("click", () => {
+    for (const wrapper of wrappers) {
+      const toggle = wrapper.querySelector(".diff-toggle");
+      const diff = wrapper.querySelector(".d2h-file-diff");
+      if (!toggle || !diff) continue;
+      toggle.setAttribute("aria-expanded", "true");
+      toggle.textContent = "\u25BE";
+      diff.classList.add("expanded");
+    }
+  });
+
+  document.getElementById("collapse-all")?.addEventListener("click", () => {
+    for (const wrapper of wrappers) {
+      const toggle = wrapper.querySelector(".diff-toggle");
+      const diff = wrapper.querySelector(".d2h-file-diff");
+      if (!toggle || !diff) continue;
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.textContent = "\u25B8";
+      diff.classList.remove("expanded");
+    }
+  });
 }
 
 function initBaseSelector() {
@@ -222,7 +277,7 @@ function initBaseSelector() {
 }
 
 window.addEventListener("load", () => {
-  preserveQueryParamsOnInternalLinks(["ignored", "watch", "base"]);
+  preserveQueryParamsOnInternalLinks(["ignored", "watch", "base", "show_all"]);
   renderMath();
   renderMermaid();
   initTimezoneToggle();
