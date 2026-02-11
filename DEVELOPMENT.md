@@ -4,12 +4,12 @@ This doc collects the “how it works” details so `README.md` can stay product
 
 ## Project layout
 
-- `src/server.js`: Express server + routes (`/tree`, `/blob`, `/raw`, `/events`)
+- `src/server.js`: Express server + routes (`/tree`, `/blob`, `/raw`, `/diff`, `/events`)
 - `src/markdown.js`: Markdown rendering + link/image rewriting + sanitization
 - `src/linkcheck.js`: broken-link scanner (Markdown → rendered HTML → internal link validation)
 - `src/gitignore.js`: `.gitignore` matcher (used for hiding + scanner noise reduction)
 - `src/views.js`: HTML templates (mobile-first top bar + GitHub-style Markdown shell)
-- `public/`: CSS + client JS (live reload, KaTeX render, Mermaid render, query preservation)
+- `public/`: CSS + client JS (live reload, KaTeX render, Mermaid render, diff collapse, query preservation)
 
 ## Running locally
 
@@ -28,6 +28,7 @@ Useful flags:
 - `GET /blob/<path>`: file view (Markdown rendered; non-Markdown shown as highlighted text)
 - `GET /raw/<path>`: raw bytes (used for images and downloads)
 - `GET /events`: Server-Sent Events stream for live reload
+- `GET /diff`: diff view — compare working tree against a base ref (`?base=HEAD` default; accepts branches, tags)
 - `GET /broken-links`: HTML report for broken internal links (Markdown docs)
 - `GET /broken-links.json`: report state + raw results
 

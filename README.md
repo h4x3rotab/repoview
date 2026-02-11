@@ -10,6 +10,7 @@ Not affiliated with GitHub.
 
 - GitHub-like browsing for local repos (tree / file / raw views)
 - GitHub-style Markdown rendering (README-friendly; close-to-GitHub)
+- Diff view — browse uncommitted changes against HEAD, branches, or tags (`/diff`)
 - Live reload when files change (SSE with polling fallback)
 - Broken internal link discovery for docs (`/broken-links`)
 - Respects `.gitignore` by default (toggleable)
@@ -62,10 +63,15 @@ Bind to all interfaces, then open the host URL from another device:
 npm start -- --repo /path/to/repo --host 0.0.0.0 --port 8890
 ```
 
+## Diff view
+
+Navigate to `/diff` (or click the "Diff" link in the top bar) to see uncommitted changes. Use the dropdown to compare against HEAD, a branch, or a tag. File sections are collapsible — click a file header to collapse/expand.
+
 ## UI toggles
 
-- `?ignored=1` shows files ignored by the repo’s `.gitignore` (default: hidden)
+- `?ignored=1` shows files ignored by the repo's `.gitignore` (default: hidden)
 - `?watch=0` disables browser auto-refresh for that tab
+- `?base=<ref>` selects the diff comparison base (default: `HEAD`)
 
 ## Development
 
