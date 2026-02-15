@@ -143,8 +143,7 @@ async function getGitDiffRaw(repoRootReal, base) {
 async function getGitInfo(repoRootReal) {
   const gitDir = path.join(repoRootReal, ".git");
   try {
-    const stat = await fs.stat(gitDir);
-    if (!stat.isDirectory()) return { branch: null, commit: null };
+    await fs.stat(gitDir);
   } catch {
     return { branch: null, commit: null };
   }
