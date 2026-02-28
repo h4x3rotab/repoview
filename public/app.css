@@ -743,6 +743,24 @@ a {
   text-decoration: underline;
 }
 
+.diff-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 2px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.diff-copy-btn:hover {
+  color: var(--accent);
+  background: var(--btnHover);
+}
+
 .d2h-file-header .d2h-tag {
   font-size: 11px;
   padding: 2px 6px;

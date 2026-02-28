@@ -180,6 +180,17 @@ function initTimezoneToggle() {
   update();
 }
 
+function fallbackCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand("copy");
+  document.body.removeChild(ta);
+}
+
 function initDiffCollapse() {
   const wrappers = document.querySelectorAll(".d2h-file-wrapper");
   if (!wrappers.length) return;
@@ -213,6 +224,34 @@ function initDiffCollapse() {
       link.textContent = rawName;
       fileNameEl.textContent = "";
       fileNameEl.appendChild(link);
+
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "diff-copy-btn";
+      copyBtn.type = "button";
+      copyBtn.setAttribute("aria-label", "Copy filename");
+      copyBtn.innerHTML =
+        '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+        '<rect x="5" y="5" width="9" height="9" rx="1.5"/>' +
+        '<path d="M3 11V2.5A1.5 1.5 0 0 1 4.5 1H11"/>' +
+        "</svg>";
+      const svgIcon = copyBtn.innerHTML;
+      copyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const showSuccess = () => {
+          copyBtn.textContent = "\u2713";
+          setTimeout(() => { copyBtn.innerHTML = svgIcon; }, 1500);
+        };
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(name).then(showSuccess).catch(() => {
+            fallbackCopy(name);
+            showSuccess();
+          });
+        } else {
+          fallbackCopy(name);
+          showSuccess();
+        }
+      });
+      fileNameEl.appendChild(copyBtn);
     }
 
     const toggle = document.createElement("button");
