@@ -40,7 +40,7 @@
   "scripts": {
     "start": "node src/cli.js",
     "dev": "node src/cli.js --watch",
-    "lint": "node -c src/cli.js && node -c src/server.js && node -c src/markdown.js && node -c src/views.js"
+    "lint": "node -c src/cli.js && node -c src/server.js && node -c src/markdown.js && node -c src/views.js && node -c src/review-cli.js"
   },
   "dependencies": {
     "chokidar": "^4.0.3",

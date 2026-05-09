@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { startServer } from "./server.js";
+import { handleReviewCommand } from "./review-cli.js";
 
 function printHelp() {
   // Keep this in sync with README.md
@@ -22,6 +23,13 @@ Options:
   --watch           Enable live reload (default)
   --no-watch        Disable live reload
   -h, --help        Show this help
+
+Review subcommands:
+  repoview review new --title "Title"              Create a new review thread
+  repoview review post <id> --role agent --body "…" Post a message to a thread
+  repoview review post <id> --role agent --file f   Post from file
+  repoview review read <id>                         Read thread messages + comments
+  repoview review list                              List all threads
 
 Environment:
   REPO_ROOT, HOST, PORT
@@ -52,6 +60,16 @@ const { repo, port, host, watch, help } = parsed;
 
 if (help) {
   printHelp();
+  process.exit(0);
+}
+
+// Handle "review" subcommand
+if (parsed.rest[0] === "review") {
+  const repoRootForReview =
+    repo ??
+    process.env.REPO_ROOT ??
+    process.cwd();
+  await handleReviewCommand(parsed.rest.slice(1), repoRootForReview);
   process.exit(0);
 }
 

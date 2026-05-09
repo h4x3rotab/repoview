@@ -315,6 +315,36 @@ function initBaseSelector() {
   });
 }
 
+function initLineHighlight() {
+  const hash = location.hash;
+  const m = hash.match(/^#L(\d+)$/);
+  if (!m) return;
+  const lineNum = parseInt(m[1], 10);
+
+  const codeBlock = document.querySelector(".code-wrap pre code, .code-wrap pre");
+  if (!codeBlock) return;
+
+  const text = codeBlock.textContent;
+  const lines = text.split("\n");
+  if (lineNum < 1 || lineNum > lines.length) return;
+
+  // Wrap lines in spans so we can highlight and scroll to the target
+  const html = codeBlock.innerHTML;
+  const htmlLines = html.split("\n");
+  codeBlock.innerHTML = htmlLines
+    .map((l, i) => {
+      const num = i + 1;
+      const cls = num === lineNum ? "line-highlight" : "";
+      return `<span class="code-line-wrap ${cls}" id="L${num}">${l}</span>`;
+    })
+    .join("\n");
+
+  const target = document.getElementById(`L${lineNum}`);
+  if (target) {
+    requestAnimationFrame(() => target.scrollIntoView({ block: "center" }));
+  }
+}
+
 window.addEventListener("load", () => {
   preserveQueryParamsOnInternalLinks(["ignored", "watch", "base", "show_all"]);
   renderMath();
@@ -322,4 +352,5 @@ window.addEventListener("load", () => {
   initTimezoneToggle();
   initBaseSelector();
   initDiffCollapse();
+  initLineHighlight();
 });

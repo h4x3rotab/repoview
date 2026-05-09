@@ -1,5 +1,17 @@
 import path from "node:path";
 
+function formatReviewTime(isoString) {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  const now = Date.now();
+  const diff = now - d.getTime();
+  if (diff < 60000) return "just now";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 export function escapeHtml(s) {
   return String(s)
     .replaceAll("&", "&amp;")
@@ -111,6 +123,7 @@ function renderMetaMenu({ gitInfo, brokenLinks, querySuffix, toggleIgnoredHref, 
   <summary class="pill link" aria-label="More">More</summary>
   <div class="menu-panel" role="menu">
     <a class="menu-item link" href="${diffHref}" role="menuitem">Diff view</a>
+    <a class="menu-item link" href="/review/" role="menuitem">Reviews</a>
     <a class="menu-item link" href="${brokenHref}" role="menuitem">${escapeHtml(brokenLabel)}</a>
     <a class="menu-item link" data-no-preserve="ignored" href="${ignoredHref}" role="menuitem">${escapeHtml(
       ignoredLabel,
@@ -157,6 +170,7 @@ function pageTemplateWithLinks({
           ${commit ? `<span class="pill mono meta-commit">${commit}</span>` : ""}
           <span class="meta-actions">
             <a class="pill link" href="/diff${querySuffix || ""}">Diff</a>
+            <a class="pill link" href="/review/">Review</a>
             ${brokenPill}
             ${ignoredPill}
           </span>
@@ -373,6 +387,170 @@ export function renderDiffPage({
       ${body}
     </main>
     <script type="module" src="/static/app.js"></script>
+  </body>
+</html>`;
+}
+
+export function renderReviewListPage({
+  title,
+  repoName,
+  gitInfo,
+  threads,
+}) {
+  const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
+  const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
+
+  const threadRows = threads.length
+    ? threads
+        .map((t) => {
+          const unread = t.readUntil
+            ? t.lastMessageId && t.lastMessageId > t.readUntil
+            : t.messageCount > 0;
+          const badge = unread ? `<span class="review-unread-badge">${t.unreadCount || "new"}</span>` : "";
+          const timeAgo = escapeHtml(formatReviewTime(t.lastActivityAt || t.createdAt));
+          return `<a class="review-thread-row" href="/review/${encodeURIComponent(t.id)}">
+  <div class="review-thread-info">
+    <span class="review-thread-title">${escapeHtml(t.title)}${badge}</span>
+    <span class="review-thread-meta">${t.messageCount} message${t.messageCount !== 1 ? "s" : ""} · ${timeAgo}</span>
+  </div>
+  <span class="review-thread-arrow">›</span>
+</a>`;
+        })
+        .join("\n")
+    : `<div class="review-empty">No review threads yet.</div>`;
+
+  const body = `<section class="panel">
+  <div class="panel-title">Review Threads</div>
+  <div class="review-thread-list">
+    ${threadRows}
+  </div>
+</section>`;
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>${escapeHtml(title)}</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-row">
+        <a class="brand" href="/tree/">${escapeHtml(repoName)}</a>
+        <div class="meta">
+          <span class="pill">${branch}</span>
+          ${commit ? `<span class="pill mono">${commit}</span>` : ""}
+        </div>
+      </div>
+    </header>
+    <main class="container">
+      ${body}
+    </main>
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>`;
+}
+
+function renderCommentCard(c, msgId) {
+  return `<div class="review-comment-card${c.resolved ? " resolved" : ""}" data-comment-id="${escapeHtml(c.id)}" data-message-id="${escapeHtml(msgId)}" data-anchor-line="${c.anchorLine || ""}" data-anchor-end-line="${c.anchorEndLine || ""}">
+  <div class="review-comment-header">
+    <span class="review-comment-anchor">${c.anchorLine ? `Line ${c.anchorLine}${c.anchorEndLine && c.anchorEndLine !== c.anchorLine ? `-${c.anchorEndLine}` : ""}` : "General"}</span>
+    <span class="review-comment-time" title="${escapeHtml(c.createdAt)}">${escapeHtml(formatReviewTime(c.createdAt))}</span>
+    <span class="review-comment-actions">
+      ${!c.resolved ? `<button class="btn btn-sm review-resolve-btn" data-comment-id="${escapeHtml(c.id)}">Resolve</button>` : `<span class="review-resolved-label">Resolved</span>`}
+      <button class="btn btn-sm review-delete-comment-btn" data-comment-id="${escapeHtml(c.id)}">Delete</button>
+    </span>
+  </div>
+  <div class="review-comment-body">${escapeHtml(c.body)}</div>
+</div>`;
+}
+
+export function renderReviewThreadPage({
+  title,
+  repoName,
+  gitInfo,
+  thread,
+  messages,
+  comments,
+  renderedMessages,
+}) {
+  const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
+  const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
+
+  const messageBlocks = messages
+    .map((msg, idx) => {
+      const isAgent = msg.role === "agent";
+      const roleClass = isAgent ? "review-msg-agent" : "review-msg-user";
+      const roleLabel = isAgent ? "Agent" : "You";
+      const rendered = renderedMessages[idx];
+
+      // Gather comments for this message
+      const msgComments = comments.filter((c) => c.messageId === msg.id);
+      const commentHtml = msgComments.length
+        ? `<div class="review-inline-comments">${msgComments.map((c) => renderCommentCard(c, msg.id)).join("\n")}</div>`
+        : "";
+
+      const contentWrapper = isAgent
+        ? `<div class="markdown-body markdown-wrap review-msg-content" data-message-id="${escapeHtml(msg.id)}">${rendered}</div>`
+        : `<div class="review-msg-content review-msg-text" data-message-id="${escapeHtml(msg.id)}">${escapeHtml(rendered)}</div>`;
+
+      return `<div class="review-message ${roleClass}" data-message-id="${escapeHtml(msg.id)}">
+  <div class="review-msg-header">
+    <span class="review-msg-role">${roleLabel}</span>
+    <span class="review-msg-time" title="${escapeHtml(msg.createdAt)}">${escapeHtml(formatReviewTime(msg.createdAt))}</span>
+  </div>
+  ${contentWrapper}
+  ${commentHtml}
+</div>`;
+    })
+    .join("\n");
+
+  const body = `<section class="panel review-thread-panel">
+  <div class="panel-title review-thread-header">
+    <a class="btn" href="/review/">← Back</a>
+    <span class="review-thread-title-text">${escapeHtml(thread.title)}</span>
+    <span class="spacer"></span>
+  </div>
+  <div class="review-messages">
+    ${messageBlocks || `<div class="review-empty">No messages yet.</div>`}
+  </div>
+  <div class="review-reply-form">
+    <textarea id="review-reply-text" class="review-reply-textarea" placeholder="Write a reply..." rows="4"></textarea>
+    <button id="review-reply-submit" class="btn review-reply-btn" data-thread-id="${escapeHtml(thread.id)}">Submit Reply</button>
+  </div>
+</section>`;
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>${escapeHtml(title)}</title>
+    <link rel="stylesheet" href="/static/vendor/github-markdown-css/github-markdown.css" />
+    <link rel="stylesheet" href="/static/vendor/highlight.js/styles/github.css" media="(prefers-color-scheme: light)" />
+    <link rel="stylesheet" href="/static/vendor/highlight.js/styles/github-dark.css" media="(prefers-color-scheme: dark)" />
+    <link rel="stylesheet" href="/static/vendor/katex/katex.min.css" />
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-row">
+        <a class="brand" href="/tree/">${escapeHtml(repoName)}</a>
+        <div class="meta">
+          <span class="pill">${branch}</span>
+          ${commit ? `<span class="pill mono">${commit}</span>` : ""}
+          <span id="conn-status" class="conn-status" title="Live reload: connecting..."></span>
+        </div>
+      </div>
+    </header>
+    <main class="container">
+      ${body}
+    </main>
+    <script defer src="/static/vendor/katex/katex.min.js"></script>
+    <script defer src="/static/vendor/katex/contrib/auto-render.min.js"></script>
+    <script type="module" src="/static/app.js"></script>
+    <script type="module" src="/static/review.js"></script>
   </body>
 </html>`;
 }

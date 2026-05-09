@@ -18,6 +18,8 @@ import {
   renderDiffPage,
   renderErrorPage,
   renderFilePage,
+  renderReviewListPage,
+  renderReviewThreadPage,
   renderTreePage,
 } from "./views.js";
 
@@ -700,6 +702,369 @@ export async function startServer({ repoRoot, host, port, watch }) {
     }
   });
 
+  // --- Review routes ---
+  const reviewDir = path.join(repoRootReal, ".repoview", "reviews");
+  const THREAD_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
+  function validateThreadId(id) {
+    return id && typeof id === "string" && THREAD_ID_RE.test(id);
+  }
+
+  app.get("/review/", async (req, res) => {
+    try {
+      let entries = [];
+      try {
+        entries = await fs.readdir(reviewDir, { withFileTypes: true });
+      } catch {
+        // no review dir yet
+      }
+
+      const threads = [];
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const threadFile = path.join(reviewDir, entry.name, "thread.json");
+        try {
+          const thread = JSON.parse(await fs.readFile(threadFile, "utf8"));
+          let messageCount = 0;
+          let lastMessageId = null;
+          try {
+            const msgs = (await fs.readdir(path.join(reviewDir, entry.name, "messages")))
+              .filter((f) => f.endsWith(".json"))
+              .sort();
+            messageCount = msgs.length;
+            lastMessageId = msgs.length ? msgs[msgs.length - 1].replace(".json", "") : null;
+          } catch {
+            // no messages
+          }
+          const unreadCount = thread.readUntil && lastMessageId
+            ? Math.max(0, parseInt(lastMessageId, 10) - parseInt(thread.readUntil, 10))
+            : thread.readUntil ? 0 : messageCount;
+          threads.push({ ...thread, messageCount, lastMessageId, unreadCount });
+        } catch {
+          // skip
+        }
+      }
+
+      threads.sort((a, b) => new Date(b.lastActivityAt) - new Date(a.lastActivityAt));
+
+      res.status(200).send(
+        renderReviewListPage({
+          title: `${repoName} · Reviews`,
+          repoName,
+          gitInfo,
+          threads,
+        }),
+      );
+    } catch (e) {
+      res.status(500).send(renderErrorPage({ title: "Error", message: e.message }));
+    }
+  });
+
+  app.get("/review/:threadId", async (req, res) => {
+    try {
+      const { threadId } = req.params;
+      if (!validateThreadId(threadId)) {
+        return res.status(400).send(renderErrorPage({ title: "Error", message: "Invalid thread ID" }));
+      }
+
+      const threadDir = path.join(reviewDir, threadId);
+      const threadFile = path.join(threadDir, "thread.json");
+
+      let thread;
+      try {
+        thread = JSON.parse(await fs.readFile(threadFile, "utf8"));
+      } catch {
+        return res.status(404).send(renderErrorPage({ title: "Error", message: "Thread not found" }));
+      }
+
+      const messagesDir = path.join(threadDir, "messages");
+      let messageFiles = [];
+      try {
+        messageFiles = (await fs.readdir(messagesDir)).filter((f) => f.endsWith(".json")).sort();
+      } catch {
+        // no messages
+      }
+
+      const messages = [];
+      for (const f of messageFiles) {
+        messages.push(JSON.parse(await fs.readFile(path.join(messagesDir, f), "utf8")));
+      }
+
+      let comments = [];
+      try {
+        const commentsData = JSON.parse(await fs.readFile(path.join(threadDir, "comments.json"), "utf8"));
+        comments = commentsData.comments || [];
+      } catch {
+        // no comments
+      }
+
+      // Render agent messages as markdown, user messages as plain text
+      const renderedMessages = messages.map((msg) => {
+        if (msg.role === "agent" && msg.format === "markdown") {
+          return md.render(msg.body, { baseDirPosix: "", emitLineMap: true });
+        }
+        return msg.body;
+      });
+
+      // Mark as read
+      if (messageFiles.length) {
+        const lastMsgId = messageFiles[messageFiles.length - 1].replace(".json", "");
+        thread.readUntil = lastMsgId;
+        await fs.writeFile(threadFile, JSON.stringify(thread, null, 2) + "\n");
+      }
+
+      res.status(200).send(
+        renderReviewThreadPage({
+          title: `${repoName} · ${thread.title}`,
+          repoName,
+          gitInfo,
+          thread,
+          messages,
+          comments,
+          renderedMessages,
+        }),
+      );
+    } catch (e) {
+      res.status(500).send(renderErrorPage({ title: "Error", message: e.message }));
+    }
+  });
+
+  app.post("/review/:threadId/messages", express.json(), async (req, res) => {
+    try {
+      const { threadId } = req.params;
+      if (!validateThreadId(threadId)) {
+        return res.status(400).json({ error: "Invalid thread ID" });
+      }
+
+      const threadDir = path.join(reviewDir, threadId);
+      const threadFile = path.join(threadDir, "thread.json");
+      const messagesDir = path.join(threadDir, "messages");
+
+      let thread;
+      try {
+        thread = JSON.parse(await fs.readFile(threadFile, "utf8"));
+      } catch {
+        return res.status(404).json({ error: "Thread not found" });
+      }
+
+      const { body } = req.body;
+      if (!body || !body.trim()) {
+        return res.status(400).json({ error: "Message body is required" });
+      }
+
+      let entries = [];
+      try {
+        entries = (await fs.readdir(messagesDir)).filter((f) => f.endsWith(".json"));
+      } catch {
+        await fs.mkdir(messagesDir, { recursive: true });
+      }
+
+      const existingIds = entries.map((e) => e.replace(".json", ""));
+      let max = 0;
+      for (const id of existingIds) {
+        const n = parseInt(id, 10);
+        if (n > max) max = n;
+      }
+      const nextId = String(max + 1).padStart(3, "0");
+      const now = new Date().toISOString();
+
+      const message = {
+        id: nextId,
+        role: "user",
+        format: "text",
+        body: body.trim(),
+        createdAt: now,
+      };
+
+      await fs.writeFile(path.join(messagesDir, `${nextId}.json`), JSON.stringify(message, null, 2) + "\n");
+      thread.lastActivityAt = now;
+      await fs.writeFile(threadFile, JSON.stringify(thread, null, 2) + "\n");
+
+      res.status(201).json(message);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/review/:threadId/comments", express.json(), async (req, res) => {
+    try {
+      const { threadId } = req.params;
+      if (!validateThreadId(threadId)) {
+        return res.status(400).json({ error: "Invalid thread ID" });
+      }
+
+      const threadDir = path.join(reviewDir, threadId);
+      const commentsFile = path.join(threadDir, "comments.json");
+
+      const { messageId, anchorLine, anchorEndLine, anchorText, body } = req.body;
+      if (!body || !body.trim()) {
+        return res.status(400).json({ error: "Comment body is required" });
+      }
+
+      let commentsData = { comments: [] };
+      try {
+        commentsData = JSON.parse(await fs.readFile(commentsFile, "utf8"));
+      } catch {
+        // fresh comments
+      }
+
+      const id = `c_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+      const comment = {
+        id,
+        messageId: messageId || null,
+        anchorLine: anchorLine || null,
+        anchorEndLine: anchorEndLine || null,
+        anchorText: anchorText || null,
+        body: body.trim(),
+        createdAt: new Date().toISOString(),
+        resolved: false,
+      };
+
+      commentsData.comments.push(comment);
+      await fs.writeFile(commentsFile, JSON.stringify(commentsData, null, 2) + "\n");
+
+      res.status(201).json(comment);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/review/:threadId/comments/:commentId", express.json(), async (req, res) => {
+    try {
+      const { threadId, commentId } = req.params;
+      if (!validateThreadId(threadId)) {
+        return res.status(400).json({ error: "Invalid thread ID" });
+      }
+
+      const commentsFile = path.join(reviewDir, threadId, "comments.json");
+
+      let commentsData;
+      try {
+        commentsData = JSON.parse(await fs.readFile(commentsFile, "utf8"));
+      } catch {
+        return res.status(404).json({ error: "Comments not found" });
+      }
+
+      const comment = commentsData.comments.find((c) => c.id === commentId);
+      if (!comment) {
+        return res.status(404).json({ error: "Comment not found" });
+      }
+
+      if (req.body.resolved !== undefined) comment.resolved = req.body.resolved;
+      if (req.body.body !== undefined) comment.body = req.body.body;
+
+      await fs.writeFile(commentsFile, JSON.stringify(commentsData, null, 2) + "\n");
+      res.status(200).json(comment);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete("/review/:threadId/comments/:commentId", async (req, res) => {
+    try {
+      const { threadId, commentId } = req.params;
+      if (!validateThreadId(threadId)) {
+        return res.status(400).json({ error: "Invalid thread ID" });
+      }
+
+      const commentsFile = path.join(reviewDir, threadId, "comments.json");
+
+      let commentsData;
+      try {
+        commentsData = JSON.parse(await fs.readFile(commentsFile, "utf8"));
+      } catch {
+        return res.status(404).json({ error: "Comments not found" });
+      }
+
+      const idx = commentsData.comments.findIndex((c) => c.id === commentId);
+      if (idx === -1) {
+        return res.status(404).json({ error: "Comment not found" });
+      }
+
+      commentsData.comments.splice(idx, 1);
+      await fs.writeFile(commentsFile, JSON.stringify(commentsData, null, 2) + "\n");
+      res.status(200).json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/review/:threadId/mark-read", express.json(), async (req, res) => {
+    try {
+      const { threadId } = req.params;
+      if (!validateThreadId(threadId)) {
+        return res.status(400).json({ error: "Invalid thread ID" });
+      }
+
+      const threadFile = path.join(reviewDir, threadId, "thread.json");
+      let thread;
+      try {
+        thread = JSON.parse(await fs.readFile(threadFile, "utf8"));
+      } catch {
+        return res.status(404).json({ error: "Thread not found" });
+      }
+
+      const { readUntil } = req.body;
+      if (readUntil) thread.readUntil = readUntil;
+      await fs.writeFile(threadFile, JSON.stringify(thread, null, 2) + "\n");
+      res.status(200).json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // --- Code context API for inline code popups ---
+  app.get("/api/code-context", async (req, res) => {
+    try {
+      const filePath = req.query.file;
+      if (!filePath || typeof filePath !== "string") {
+        return res.status(400).json({ error: "file parameter required" });
+      }
+      const line = parseInt(req.query.line, 10) || 1;
+      const endLine = parseInt(req.query.endLine, 10) || line;
+      const context = Math.min(parseInt(req.query.context, 10) || 20, 200);
+
+      const { resolved, stripped } = await safeRealpath(repoRootReal, filePath);
+      const st = await statSafe(resolved);
+      if (!st || !st.isFile) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      if (st.size > 2 * 1024 * 1024) {
+        return res.status(400).json({ error: "File too large" });
+      }
+
+      const raw = await fs.readFile(resolved, "utf8");
+      const allLines = raw.split("\n");
+
+      const startLine = Math.max(1, Math.min(line, endLine) - context);
+      const stopLine = Math.min(allLines.length, Math.max(line, endLine) + context);
+      const snippet = allLines.slice(startLine - 1, stopLine);
+
+      const ext = path.extname(stripped).slice(1);
+
+      // Get diff for this file (against HEAD)
+      let diff = null;
+      const diffResult = await execGit(repoRootReal, ["diff", "HEAD", "--", stripped], 256 * 1024);
+      if (diffResult.output) {
+        diff = diffResult.output;
+      }
+
+      res.json({
+        file: toPosixPath(stripped),
+        startLine,
+        stopLine,
+        highlightStart: Math.min(line, endLine),
+        highlightEnd: Math.max(line, endLine),
+        lines: snippet,
+        language: ext,
+        totalLines: allLines.length,
+        diff,
+      });
+    } catch (e) {
+      res.status(e.statusCode || 500).json({ error: e.message });
+    }
+  });
+
   app.get(["/raw/*", "/raw"], async (req, res) => {
     try {
       const p = req.params[0] ?? "";
@@ -734,6 +1099,7 @@ export async function startServer({ repoRoot, host, port, watch }) {
       ignored: [
         /(^|[/\\])\.git([/\\]|$)/,
         /(^|[/\\])node_modules([/\\]|$)/,
+        /(^|[/\\])\.repoview([/\\]|$)/,
       ],
       ignoreInitial: true,
       ignorePermissionErrors: true,

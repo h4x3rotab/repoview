@@ -13,3 +13,6 @@ yarn-error.log*
 _trigger.md
 _feature-test.md
 
+# Review data
+.repoview/
+

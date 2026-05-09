@@ -278,6 +278,18 @@ export function createMarkdownRenderer() {
     }
   });
 
+  // Source line mapping for inline comment anchoring (opt-in via env.emitLineMap)
+  md.core.ruler.push("source-line-map", (state) => {
+    if (!state.env.emitLineMap) return;
+    for (const token of state.tokens) {
+      if (token.nesting !== 1) continue; // only opening tokens
+      if (token.map && token.map.length === 2) {
+        token.attrSet("data-source-line-start", String(token.map[0] + 1));
+        token.attrSet("data-source-line-end", String(token.map[1]));
+      }
+    }
+  });
+
   function sanitize(html, env) {
     const baseDirPosix = env?.baseDirPosix || "";
     return sanitizeHtml(html, {
@@ -308,7 +320,7 @@ export function createMarkdownRenderer() {
         "input",
       ],
       allowedAttributes: {
-        "*": ["class", "id", "aria-label", "aria-hidden", "role", "align"],
+        "*": ["class", "id", "aria-label", "aria-hidden", "role", "align", "data-source-line-start", "data-source-line-end"],
         a: ["href", "name", "title", "target", "rel", "tabindex"],
         img: ["src", "alt", "title", "width", "height", "loading"],
         input: ["type", "checked", "disabled"],
