@@ -16,6 +16,145 @@ function escapeHtml(s) {
     .replaceAll("'", "&#39;");
 }
 
+function stripQuotes(s) {
+  if (s.length >= 2) {
+    const first = s[0];
+    const last = s[s.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return s.slice(1, -1);
+    }
+  }
+  return s;
+}
+
+function parseFlowList(raw) {
+  return raw
+    .slice(1, -1)
+    .split(",")
+    .map((s) => stripQuotes(s.trim()))
+    .filter((s) => s.length > 0);
+}
+
+// Lightweight YAML frontmatter parser. Handles the common forms used in
+// markdown frontmatter: `key: value`, quoted strings, `key: [a, b, c]`,
+// and indented `- item` block lists. Returns null when the leading `---`
+// block doesn't look like YAML, so plain horizontal rules pass through.
+function extractFrontmatter(text) {
+  const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  if (!match) return { data: null, body: text };
+
+  const block = match[1];
+  const lines = block.split(/\r?\n/);
+  const data = {};
+  const order = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim() || line.trim().startsWith("#")) continue;
+    const m = line.match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/);
+    if (!m) {
+      // Anything other than a YAML key on a top-level line means this isn't
+      // really frontmatter — bail out and leave the body untouched.
+      return { data: null, body: text };
+    }
+    const key = m[1];
+    const raw = m[2].trim();
+    if (raw === "") {
+      const items = [];
+      let j = i + 1;
+      while (j < lines.length) {
+        const sub = lines[j].match(/^\s+-\s+(.*)$/);
+        if (!sub) break;
+        items.push(stripQuotes(sub[1].trim()));
+        j++;
+      }
+      if (items.length) {
+        data[key] = items;
+        order.push(key);
+        i = j - 1;
+      }
+      continue;
+    }
+    if (raw.startsWith("[") && raw.endsWith("]")) {
+      data[key] = parseFlowList(raw);
+    } else {
+      data[key] = stripQuotes(raw);
+    }
+    order.push(key);
+  }
+
+  if (order.length === 0) return { data: null, body: text };
+  // Replace the frontmatter region with blank lines so downstream source-line
+  // numbers stay aligned with the original markdown.
+  const consumed = match[0];
+  const newlineCount = (consumed.match(/\n/g) || []).length;
+  const body = "\n".repeat(newlineCount) + text.slice(consumed.length);
+  return { data, order, body };
+}
+
+const FRONTMATTER_KNOWN_KEYS = new Set([
+  "title",
+  "description",
+  "summary",
+  "subtitle",
+  "date",
+  "published",
+  "updated",
+  "author",
+  "authors",
+  "tags",
+  "categories",
+]);
+
+function renderFrontmatter(data, order) {
+  const title = data.title;
+  const description = data.description ?? data.summary ?? data.subtitle;
+  const date = data.date ?? data.published ?? data.updated;
+  const authorVal = data.author ?? data.authors;
+  const tagsVal = data.tags ?? data.categories;
+
+  const parts = ['<div class="md-frontmatter">'];
+  if (title) parts.push(`<h1 class="md-frontmatter-title">${escapeHtml(title)}</h1>`);
+  if (description)
+    parts.push(`<p class="md-frontmatter-description">${escapeHtml(description)}</p>`);
+
+  const meta = [];
+  if (date) meta.push(`<span class="md-frontmatter-date">${escapeHtml(date)}</span>`);
+  if (authorVal) {
+    const authors = Array.isArray(authorVal) ? authorVal : [authorVal];
+    if (authors.length) {
+      meta.push(
+        `<span class="md-frontmatter-author">${authors.map(escapeHtml).join(", ")}</span>`,
+      );
+    }
+  }
+  if (tagsVal) {
+    const tags = Array.isArray(tagsVal) ? tagsVal : [tagsVal];
+    if (tags.length) {
+      const items = tags
+        .map((t) => `<li class="md-frontmatter-tag">${escapeHtml(t)}</li>`)
+        .join("");
+      meta.push(`<ul class="md-frontmatter-tags">${items}</ul>`);
+    }
+  }
+  if (meta.length) parts.push(`<div class="md-frontmatter-meta">${meta.join("")}</div>`);
+
+  const extras = (order || Object.keys(data)).filter((k) => !FRONTMATTER_KNOWN_KEYS.has(k));
+  if (extras.length) {
+    const rows = extras
+      .map((k) => {
+        const v = data[k];
+        const display = Array.isArray(v) ? v.join(", ") : v;
+        return `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(display)}</dd>`;
+      })
+      .join("");
+    parts.push(`<dl class="md-frontmatter-extra">${rows}</dl>`);
+  }
+
+  parts.push("</div>");
+  return parts.join("");
+}
+
 // CommonMark only allows "1." to interrupt a paragraph, but GitHub allows any number.
 // This preprocessor adds blank lines before ordered lists starting with numbers other than 1.
 function normalizeOrderedLists(text) {
@@ -359,8 +498,11 @@ export function createMarkdownRenderer() {
   return {
     render(markdown, env) {
       const e = env ?? {};
-      const html = md.render(markdown ?? "", e);
-      return sanitize(html, e);
+      const source = markdown ?? "";
+      const fm = extractFrontmatter(source);
+      const fmHtml = fm.data ? renderFrontmatter(fm.data, fm.order) : "";
+      const html = md.render(fm.body, e);
+      return sanitize(fmHtml + html, e);
     },
     renderCodeBlock(text, { languageHint } = {}) {
       const lang = languageHint && hljs.getLanguage(languageHint) ? languageHint : "";

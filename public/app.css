@@ -481,6 +481,110 @@ a {
   border-left-color: #cf222e;
 }
 
+.markdown-body .md-frontmatter {
+  margin: 0 0 24px;
+  padding: 16px 18px 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--subtleBg);
+}
+
+.markdown-body .md-frontmatter > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body .md-frontmatter > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body .md-frontmatter-title {
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  font-size: 1.6rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.markdown-body .md-frontmatter-description {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.markdown-body .md-frontmatter-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.markdown-body .md-frontmatter-meta + .md-frontmatter-extra {
+  margin-top: 12px;
+}
+
+.markdown-body .md-frontmatter-date,
+.markdown-body .md-frontmatter-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.markdown-body .md-frontmatter-date::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='black' d='M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5h-11Zm11-1.5v-2.25a.25.25 0 0 0-.25-.25H2.75a.25.25 0 0 0-.25.25V6h11Z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='black' d='M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5h-11Zm11-1.5v-2.25a.25.25 0 0 0-.25-.25H2.75a.25.25 0 0 0-.25.25V6h11Z'/%3E%3C/svg%3E");
+}
+
+.markdown-body .md-frontmatter-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.markdown-body .md-frontmatter-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: 999px;
+}
+
+.markdown-body .md-frontmatter-extra {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.markdown-body .md-frontmatter-extra dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.markdown-body .md-frontmatter-extra dd {
+  margin: 0;
+  color: var(--text);
+  word-break: break-word;
+}
+
 .markdown-body pre.mermaid {
   padding: 12px;
   border: 1px solid var(--border);
