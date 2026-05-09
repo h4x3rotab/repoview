@@ -8,6 +8,7 @@ yarn-error.log*
 # Editor
 .vscode/
 .idea/
+.claude/
 
 # Temp files created during local testing
 _trigger.md
