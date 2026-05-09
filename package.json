@@ -40,7 +40,9 @@
   "scripts": {
     "start": "node src/cli.js",
     "dev": "node src/cli.js --watch",
-    "lint": "node -c src/cli.js && node -c src/server.js && node -c src/markdown.js && node -c src/views.js && node -c src/review-cli.js"
+    "lint": "node -c src/cli.js && node -c src/server.js && node -c src/markdown.js && node -c src/views.js && node -c src/review-cli.js",
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed"
   },
   "dependencies": {
     "chokidar": "^4.0.3",
@@ -58,5 +60,8 @@
     "mermaid": "^11.12.0",
     "mime-types": "^2.1.35",
     "sanitize-html": "^2.17.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
   }
 }

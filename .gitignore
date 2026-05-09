@@ -16,3 +16,7 @@ _feature-test.md
 # Review data
 .repoview/
 
+# Test artifacts
+tests/screenshots/
+test-results/
+
