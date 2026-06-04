@@ -1,12 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import ignore from "ignore";
+import type { IgnoreMatcher } from "./types.js";
 
-function toPosixPath(p) {
+function toPosixPath(p: string): string {
   return p.split(path.sep).join("/");
 }
 
-export async function loadGitIgnoreMatcher(repoRootReal) {
+export async function loadGitIgnoreMatcher(repoRootReal: string): Promise<IgnoreMatcher> {
   const ig = ignore();
 
   // Baseline ignores (never show these via toggle either).
@@ -20,7 +21,7 @@ export async function loadGitIgnoreMatcher(repoRootReal) {
   }
 
   return {
-    ignores(relPathPosix, { isDir = false } = {}) {
+    ignores(relPathPosix: string, { isDir = false }: { isDir?: boolean } = {}) {
       const p = toPosixPath(String(relPathPosix || "").replace(/^\/+/, ""));
       if (!p) return false;
       if (ig.ignores(p)) return true;

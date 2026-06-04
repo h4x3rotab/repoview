@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import express from "express";
+import type { Request, Response } from "express";
 import mime from "mime-types";
 import diff2html from "diff2html";
 
@@ -15,6 +16,8 @@ import {
   renderTreePage,
 } from "./views.js";
 import { toPosixPath, encodePathForUrl, safeRealpath, statSafe } from "./paths.js";
+import type { HttpError } from "./paths.js";
+import type { RepoContext } from "./types.js";
 import { formatBytes, formatDate } from "./format.js";
 import { parseCsv, renderCsvTable } from "./csv.js";
 import {
@@ -27,29 +30,33 @@ import {
 
 const THREAD_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
-function validateThreadId(id) {
-  return id && typeof id === "string" && THREAD_ID_RE.test(id);
+function qstr(v: unknown): string | undefined {
+  return typeof v === "string" ? v : undefined;
+}
+
+function validateThreadId(id: unknown): boolean {
+  return !!id && typeof id === "string" && THREAD_ID_RE.test(id);
 }
 
 /**
  * Build an express.Router serving a single repo (the given context). Mounted at
  * "/" for single-repo today; at "/r/:repoId" once multi-repo sessions land.
  */
-export function createRepoRouter(ctx) {
+export function createRepoRouter(ctx: RepoContext) {
   const { md } = ctx;
   const router = express.Router();
 
-  router.get("/rev", (req, res) => {
+  router.get("/rev", (req: Request, res: Response) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.status(200).send({ revision: ctx.reloadHub.getRevision() });
   });
 
-  router.get("/broken-links.json", (req, res) => {
+  router.get("/broken-links.json", (req: Request, res: Response) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.status(200).send(ctx.linkScanner.getState());
   });
 
-  router.get("/broken-links", (req, res) => {
+  router.get("/broken-links", (req: Request, res: Response) => {
     const showIgnored = req.query.ignored === "1";
     const query = new URLSearchParams();
     if (req.query.watch === "0") query.set("watch", "0");
@@ -77,7 +84,7 @@ export function createRepoRouter(ctx) {
     );
   });
 
-  router.get("/events", (req, res) => {
+  router.get("/events", (req: Request, res: Response) => {
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
@@ -96,17 +103,17 @@ export function createRepoRouter(ctx) {
     res.on("close", () => clearInterval(interval));
   });
 
-  router.get("/diff", async (req, res) => {
+  router.get("/diff", async (req: Request, res: Response) => {
     try {
-      const base = req.query.base || "HEAD";
+      const base = qstr(req.query.base) || "HEAD";
       if (!validateGitRef(base)) {
-        const err = new Error("Invalid base ref");
+        const err: HttpError = new Error("Invalid base ref");
         err.statusCode = 400;
         throw err;
       }
 
       if (!ctx.gitInfo.commit) {
-        const err = new Error("Not a git repository");
+        const err: HttpError = new Error("Not a git repository");
         err.statusCode = 400;
         throw err;
       }
@@ -158,13 +165,14 @@ export function createRepoRouter(ctx) {
         }),
       );
     } catch (e) {
+      const err = e as HttpError;
       res
-        .status(e.statusCode || 500)
-        .send(renderErrorPage({ title: "Error", message: e.message }));
+        .status(err.statusCode || 500)
+        .send(renderErrorPage({ title: "Error", message: err.message }));
     }
   });
 
-  router.get(["/tree/*", "/tree"], async (req, res) => {
+  router.get(["/tree/*", "/tree"], async (req: Request, res: Response) => {
     try {
       const showIgnored = req.query.ignored === "1";
       const query = new URLSearchParams();
@@ -185,7 +193,7 @@ export function createRepoRouter(ctx) {
       )}${toggleIgnoredSuffix}`;
       const st = await statSafe(resolved);
       if (st === null) {
-        const err = new Error("Permission denied");
+        const err: HttpError = new Error("Permission denied");
         err.statusCode = 403;
         throw err;
       }
@@ -198,8 +206,8 @@ export function createRepoRouter(ctx) {
       try {
         entries = await fs.readdir(resolved, { withFileTypes: true });
       } catch (e) {
-        if (e.code === "EACCES" || e.code === "EPERM") {
-          const err = new Error("Permission denied");
+        if ((e as NodeJS.ErrnoException).code === "EACCES" || (e as NodeJS.ErrnoException).code === "EPERM") {
+          const err: HttpError = new Error("Permission denied");
           err.statusCode = 403;
           throw err;
         }
@@ -253,7 +261,7 @@ export function createRepoRouter(ctx) {
             throw new Error("ignored");
           const { resolved: readmePath } = await safeRealpath(ctx.repoRootReal, readmeRel);
           const readmeStat = await statSafe(readmePath);
-          if (readmeStat.size <= 2 * 1024 * 1024) {
+          if (readmeStat && readmeStat.size <= 2 * 1024 * 1024) {
             const buf = await fs.readFile(readmePath);
             readmeHtml = md.render(buf.toString("utf8"), {
               baseDirPosix: toPosixPath(stripped),
@@ -279,13 +287,14 @@ export function createRepoRouter(ctx) {
         }),
       );
     } catch (e) {
+      const err = e as HttpError;
       res
-        .status(e.statusCode || 500)
-        .send(renderErrorPage({ title: "Error", message: e.message }));
+        .status(err.statusCode || 500)
+        .send(renderErrorPage({ title: "Error", message: err.message }));
     }
   });
 
-  router.get(["/blob/*", "/blob"], async (req, res) => {
+  router.get(["/blob/*", "/blob"], async (req: Request, res: Response) => {
     try {
       const showIgnored = req.query.ignored === "1";
       const query = new URLSearchParams();
@@ -306,7 +315,7 @@ export function createRepoRouter(ctx) {
       )}${toggleIgnoredSuffix}`;
       const st = await statSafe(resolved);
       if (st === null) {
-        const err = new Error("Permission denied");
+        const err: HttpError = new Error("Permission denied");
         err.statusCode = 403;
         throw err;
       }
@@ -423,18 +432,19 @@ export function createRepoRouter(ctx) {
         }),
       );
     } catch (e) {
+      const err = e as HttpError;
       res
-        .status(e.statusCode || 500)
-        .send(renderErrorPage({ title: "Error", message: e.message }));
+        .status(err.statusCode || 500)
+        .send(renderErrorPage({ title: "Error", message: err.message }));
     }
   });
 
   // --- Review routes ---
   const reviewDir = ctx.reviewDir;
 
-  router.get("/review/", async (req, res) => {
+  router.get("/review/", async (req: Request, res: Response) => {
     try {
-      let entries = [];
+      let entries: import("node:fs").Dirent[] = [];
       try {
         entries = await fs.readdir(reviewDir, { withFileTypes: true });
       } catch {
@@ -467,7 +477,7 @@ export function createRepoRouter(ctx) {
         }
       }
 
-      threads.sort((a, b) => new Date(b.lastActivityAt) - new Date(a.lastActivityAt));
+      threads.sort((a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime());
 
       res.status(200).send(
         renderReviewListPage({
@@ -478,11 +488,11 @@ export function createRepoRouter(ctx) {
         }),
       );
     } catch (e) {
-      res.status(500).send(renderErrorPage({ title: "Error", message: e.message }));
+      res.status(500).send(renderErrorPage({ title: "Error", message: (e as HttpError).message }));
     }
   });
 
-  router.get("/review/:threadId", async (req, res) => {
+  router.get("/review/:threadId", async (req: Request, res: Response) => {
     try {
       const { threadId } = req.params;
       if (!validateThreadId(threadId)) {
@@ -500,7 +510,7 @@ export function createRepoRouter(ctx) {
       }
 
       const messagesDir = path.join(threadDir, "messages");
-      let messageFiles = [];
+      let messageFiles: string[] = [];
       try {
         messageFiles = (await fs.readdir(messagesDir)).filter((f) => f.endsWith(".json")).sort();
       } catch {
@@ -547,11 +557,11 @@ export function createRepoRouter(ctx) {
         }),
       );
     } catch (e) {
-      res.status(500).send(renderErrorPage({ title: "Error", message: e.message }));
+      res.status(500).send(renderErrorPage({ title: "Error", message: (e as HttpError).message }));
     }
   });
 
-  router.post("/review/:threadId/messages", express.json(), async (req, res) => {
+  router.post("/review/:threadId/messages", express.json(), async (req: Request, res: Response) => {
     try {
       const { threadId } = req.params;
       if (!validateThreadId(threadId)) {
@@ -574,7 +584,7 @@ export function createRepoRouter(ctx) {
         return res.status(400).json({ error: "Message body is required" });
       }
 
-      let entries = [];
+      let entries: string[] = [];
       try {
         entries = (await fs.readdir(messagesDir)).filter((f) => f.endsWith(".json"));
       } catch {
@@ -604,11 +614,11 @@ export function createRepoRouter(ctx) {
 
       res.status(201).json(message);
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: (e as HttpError).message });
     }
   });
 
-  router.post("/review/:threadId/comments", express.json(), async (req, res) => {
+  router.post("/review/:threadId/comments", express.json(), async (req: Request, res: Response) => {
     try {
       const { threadId } = req.params;
       if (!validateThreadId(threadId)) {
@@ -623,7 +633,7 @@ export function createRepoRouter(ctx) {
         return res.status(400).json({ error: "Comment body is required" });
       }
 
-      let commentsData = { comments: [] };
+      let commentsData: { comments: any[] } = { comments: [] };
       try {
         commentsData = JSON.parse(await fs.readFile(commentsFile, "utf8"));
       } catch {
@@ -647,11 +657,11 @@ export function createRepoRouter(ctx) {
 
       res.status(201).json(comment);
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: (e as HttpError).message });
     }
   });
 
-  router.patch("/review/:threadId/comments/:commentId", express.json(), async (req, res) => {
+  router.patch("/review/:threadId/comments/:commentId", express.json(), async (req: Request, res: Response) => {
     try {
       const { threadId, commentId } = req.params;
       if (!validateThreadId(threadId)) {
@@ -667,7 +677,7 @@ export function createRepoRouter(ctx) {
         return res.status(404).json({ error: "Comments not found" });
       }
 
-      const comment = commentsData.comments.find((c) => c.id === commentId);
+      const comment = commentsData.comments.find((c: any) => c.id === commentId);
       if (!comment) {
         return res.status(404).json({ error: "Comment not found" });
       }
@@ -678,11 +688,11 @@ export function createRepoRouter(ctx) {
       await fs.writeFile(commentsFile, JSON.stringify(commentsData, null, 2) + "\n");
       res.status(200).json(comment);
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: (e as HttpError).message });
     }
   });
 
-  router.delete("/review/:threadId/comments/:commentId", async (req, res) => {
+  router.delete("/review/:threadId/comments/:commentId", async (req: Request, res: Response) => {
     try {
       const { threadId, commentId } = req.params;
       if (!validateThreadId(threadId)) {
@@ -698,7 +708,7 @@ export function createRepoRouter(ctx) {
         return res.status(404).json({ error: "Comments not found" });
       }
 
-      const idx = commentsData.comments.findIndex((c) => c.id === commentId);
+      const idx = commentsData.comments.findIndex((c: any) => c.id === commentId);
       if (idx === -1) {
         return res.status(404).json({ error: "Comment not found" });
       }
@@ -707,11 +717,11 @@ export function createRepoRouter(ctx) {
       await fs.writeFile(commentsFile, JSON.stringify(commentsData, null, 2) + "\n");
       res.status(200).json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: (e as HttpError).message });
     }
   });
 
-  router.post("/review/:threadId/mark-read", express.json(), async (req, res) => {
+  router.post("/review/:threadId/mark-read", express.json(), async (req: Request, res: Response) => {
     try {
       const { threadId } = req.params;
       if (!validateThreadId(threadId)) {
@@ -731,20 +741,20 @@ export function createRepoRouter(ctx) {
       await fs.writeFile(threadFile, JSON.stringify(thread, null, 2) + "\n");
       res.status(200).json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: (e as HttpError).message });
     }
   });
 
   // --- Code context API for inline code popups ---
-  router.get("/api/code-context", async (req, res) => {
+  router.get("/api/code-context", async (req: Request, res: Response) => {
     try {
       const filePath = req.query.file;
       if (!filePath || typeof filePath !== "string") {
         return res.status(400).json({ error: "file parameter required" });
       }
-      const line = parseInt(req.query.line, 10) || 1;
-      const endLine = parseInt(req.query.endLine, 10) || line;
-      const context = Math.min(parseInt(req.query.context, 10) || 20, 200);
+      const line = parseInt(qstr(req.query.line) ?? "", 10) || 1;
+      const endLine = parseInt(qstr(req.query.endLine) ?? "", 10) || line;
+      const context = Math.min(parseInt(qstr(req.query.context) ?? "", 10) || 20, 200);
 
       const { resolved, stripped } = await safeRealpath(ctx.repoRootReal, filePath);
       const st = await statSafe(resolved);
@@ -783,22 +793,23 @@ export function createRepoRouter(ctx) {
         diff,
       });
     } catch (e) {
-      res.status(e.statusCode || 500).json({ error: e.message });
+      const err = e as HttpError;
+      res.status(err.statusCode || 500).json({ error: err.message });
     }
   });
 
-  router.get(["/raw/*", "/raw"], async (req, res) => {
+  router.get(["/raw/*", "/raw"], async (req: Request, res: Response) => {
     try {
       const p = req.params[0] ?? "";
       const { resolved } = await safeRealpath(ctx.repoRootReal, p);
       const st = await statSafe(resolved);
       if (st === null) {
-        const err = new Error("Permission denied");
+        const err: HttpError = new Error("Permission denied");
         err.statusCode = 403;
         throw err;
       }
       if (!st.isFile) {
-        const err = new Error("Not a file");
+        const err: HttpError = new Error("Not a file");
         err.statusCode = 400;
         throw err;
       }
@@ -807,9 +818,10 @@ export function createRepoRouter(ctx) {
       res.setHeader("Content-Type", contentType);
       res.sendFile(resolved);
     } catch (e) {
+      const err = e as HttpError;
       res
-        .status(e.statusCode || 500)
-        .send(renderErrorPage({ title: "Error", message: e.message }));
+        .status(err.statusCode || 500)
+        .send(renderErrorPage({ title: "Error", message: err.message }));
     }
   });
 

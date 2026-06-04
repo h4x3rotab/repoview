@@ -1,8 +1,10 @@
-export function createReloadHub() {
-  const clients = new Set();
+import type { ReloadHub, SseClient } from "./types.js";
+
+export function createReloadHub(): ReloadHub {
+  const clients = new Set<SseClient>();
   let revision = 0;
   return {
-    add(res) {
+    add(res: SseClient) {
       clients.add(res);
       res.on("close", () => clients.delete(res));
     },

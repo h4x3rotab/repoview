@@ -3,18 +3,26 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
+import type { Request, Response, NextFunction } from "express";
 
 import { createMarkdownRenderer } from "./markdown.js";
 import { createRepoContext } from "./repo-context.js";
 import { createRepoRouter } from "./repo-router.js";
 
-export async function startServer({ repoRoot, host, port, watch }) {
+export interface StartServerOptions {
+  repoRoot: string;
+  host: string;
+  port: number;
+  watch: boolean;
+}
+
+export async function startServer({ repoRoot, host, port, watch }: StartServerOptions) {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const packageRoot = path.resolve(__dirname, "..");
   const require = createRequire(import.meta.url);
 
-  const resolvePackageDir = (name) => {
+  const resolvePackageDir = (name: string): string => {
     const pkgJson = require.resolve(`${name}/package.json`);
     return path.dirname(pkgJson);
   };
@@ -58,7 +66,7 @@ export async function startServer({ repoRoot, host, port, watch }) {
     }),
   );
 
-  app.use((req, res, next) => {
+  app.use((req: Request, res: Response, next: NextFunction) => {
     if (!req.path.startsWith("/static/")) res.setHeader("Cache-Control", "no-store");
     next();
   });
@@ -68,7 +76,7 @@ export async function startServer({ repoRoot, host, port, watch }) {
   app.use("/", createRepoRouter(ctx));
 
   const server = http.createServer(app);
-  await new Promise((resolve) => server.listen(port, host, resolve));
+  await new Promise<void>((resolve) => server.listen(port, host, resolve));
 
   // eslint-disable-next-line no-console
   console.log(`repoview: ${ctx.repoRootReal}`);

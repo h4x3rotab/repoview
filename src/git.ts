@@ -1,9 +1,20 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import type { GitInfo } from "./types.js";
 
-export function execGit(repoRootReal, args, maxBytes = 1024 * 1024) {
-  return new Promise((resolve) => {
+export interface GitExecResult {
+  output: string | null;
+  tooLarge: boolean;
+  code: number | null;
+}
+
+export function execGit(
+  repoRootReal: string,
+  args: string[],
+  maxBytes = 1024 * 1024,
+): Promise<GitExecResult> {
+  return new Promise<GitExecResult>((resolve) => {
     const child = spawn("git", args, { cwd: repoRootReal });
     let out = "";
     let size = 0;
@@ -24,30 +35,33 @@ export function execGit(repoRootReal, args, maxBytes = 1024 * 1024) {
   });
 }
 
-export function validateGitRef(ref) {
+export function validateGitRef(ref: unknown): boolean {
   if (!ref || typeof ref !== "string") return false;
   return /^[a-zA-Z0-9_.\/\-~^]+$/.test(ref);
 }
 
-export async function getGitBranches(repoRootReal) {
+export async function getGitBranches(repoRootReal: string): Promise<string[]> {
   const { output } = await execGit(repoRootReal, ["branch", "--format=%(refname:short)"]);
   if (!output) return [];
   return output.split("\n").filter(Boolean);
 }
 
-export async function getGitTags(repoRootReal) {
+export async function getGitTags(repoRootReal: string): Promise<string[]> {
   const { output } = await execGit(repoRootReal, ["tag", "-l"]);
   if (!output) return [];
   return output.split("\n").filter(Boolean);
 }
 
-export async function getGitDiffRaw(repoRootReal, base) {
+export async function getGitDiffRaw(
+  repoRootReal: string,
+  base: string,
+): Promise<{ raw: string; tooLarge: boolean }> {
   const maxBytes = 512 * 1024;
   const { output, tooLarge } = await execGit(repoRootReal, ["diff", base], maxBytes);
   return { raw: output || "", tooLarge };
 }
 
-export async function getGitInfo(repoRootReal) {
+export async function getGitInfo(repoRootReal: string): Promise<GitInfo> {
   const gitDir = path.join(repoRootReal, ".git");
   try {
     await fs.stat(gitDir);

@@ -6,20 +6,33 @@ import { loadGitIgnoreMatcher } from "./gitignore.js";
 import { createRepoLinkScanner } from "./linkcheck.js";
 import { getGitInfo } from "./git.js";
 import { createReloadHub } from "./reload.js";
+import type { LinkScanner, MarkdownRenderer, RepoContext } from "./types.js";
+
+export interface CreateRepoContextOptions {
+  id?: string;
+  repoRoot: string;
+  md: MarkdownRenderer;
+  watch?: boolean;
+}
 
 /**
  * Build the per-repo runtime state. Each context owns its own git info,
  * gitignore matcher, link scanner, review dir, reload hub and (optionally) a
  * filesystem watcher. The markdown renderer is shared across repos and passed in.
  */
-export async function createRepoContext({ id, repoRoot, md, watch = true }) {
+export async function createRepoContext({
+  id,
+  repoRoot,
+  md,
+  watch = true,
+}: CreateRepoContextOptions): Promise<RepoContext> {
   const repoRootReal = await fs.realpath(repoRoot);
   const repoName = path.basename(repoRootReal);
   const gitInfo = await getGitInfo(repoRootReal);
   const reloadHub = createReloadHub();
   const reviewDir = path.join(repoRootReal, ".repoview", "reviews");
 
-  const ctx = {
+  const ctx: RepoContext = {
     id: id ?? repoName,
     repoRootReal,
     repoName,
@@ -28,13 +41,18 @@ export async function createRepoContext({ id, repoRoot, md, watch = true }) {
     reviewDir,
     md,
     ignoreMatcher: await loadGitIgnoreMatcher(repoRootReal),
-    linkScanner: null,
+    isIgnored: () => false,
+    linkScanner: undefined as unknown as LinkScanner,
     watcher: null,
+    close: async () => {},
   };
 
-  const isIgnored = (relPosix, opts) => ctx.ignoreMatcher.ignores(relPosix, opts);
-  ctx.isIgnored = isIgnored;
-  ctx.linkScanner = createRepoLinkScanner({ repoRootReal, markdownRenderer: md, isIgnored });
+  ctx.isIgnored = (relPosix, opts) => ctx.ignoreMatcher.ignores(relPosix, opts);
+  ctx.linkScanner = createRepoLinkScanner({
+    repoRootReal,
+    markdownRenderer: md,
+    isIgnored: ctx.isIgnored,
+  });
 
   void ctx.linkScanner.triggerScan();
 
@@ -51,7 +69,7 @@ export async function createRepoContext({ id, repoRoot, md, watch = true }) {
     watcher.on("error", () => {
       // Silently ignore watch errors (e.g., permission denied)
     });
-    let pending = null;
+    let pending: ReturnType<typeof setTimeout> | null = null;
     watcher.on("all", () => {
       if (pending) return;
       pending = setTimeout(() => {

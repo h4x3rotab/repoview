@@ -1,6 +1,7 @@
 import path from "node:path";
+import type { GitInfo, ScanState } from "./types.js";
 
-function formatReviewTime(isoString) {
+function formatReviewTime(isoString: string | null | undefined): string {
   if (!isoString) return "";
   const d = new Date(isoString);
   const now = Date.now();
@@ -12,7 +13,7 @@ function formatReviewTime(isoString) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-export function escapeHtml(s) {
+export function escapeHtml(s: unknown): string {
   return String(s)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -21,17 +22,22 @@ export function escapeHtml(s) {
     .replaceAll("'", "&#39;");
 }
 
-function encodePathForUrl(posixPath) {
+function encodePathForUrl(posixPath: string): string {
   return posixPath
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
 }
 
-function renderBreadcrumbs(relPathPosix, querySuffix) {
+interface Crumb {
+  name: string;
+  href: string;
+}
+
+function renderBreadcrumbs(relPathPosix: string | null | undefined, querySuffix: string | null | undefined): string {
   const parts = (relPathPosix || "").split("/").filter(Boolean);
   const suffix = querySuffix || "";
-  const crumbs = [{ name: "", href: `/tree/${suffix}` }];
+  const crumbs: Crumb[] = [{ name: "", href: `/tree/${suffix}` }];
   let cursor = "";
   for (const p of parts) {
     cursor = cursor ? `${cursor}/${p}` : p;
@@ -47,7 +53,15 @@ function renderBreadcrumbs(relPathPosix, querySuffix) {
   return `<nav class="breadcrumbs" aria-label="Breadcrumbs">${html}</nav>`;
 }
 
-function pageTemplate({ title, repoName, gitInfo, relPathPosix, bodyHtml }) {
+interface PageTemplateOptions {
+  title: string;
+  repoName: string;
+  gitInfo: GitInfo | null;
+  relPathPosix: string;
+  bodyHtml: string;
+}
+
+function pageTemplate({ title, repoName, gitInfo, relPathPosix, bodyHtml }: PageTemplateOptions): string {
   const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
   return `<!doctype html>
@@ -83,7 +97,10 @@ function pageTemplate({ title, repoName, gitInfo, relPathPosix, bodyHtml }) {
 </html>`;
 }
 
-function renderBrokenLinksPill(brokenLinks, querySuffix) {
+function renderBrokenLinksPill(
+  brokenLinks: ScanState | null | undefined,
+  querySuffix: string | null | undefined,
+): string {
   const state = brokenLinks;
   if (!state) return "";
   const status = state.status;
@@ -97,13 +114,32 @@ function renderBrokenLinksPill(brokenLinks, querySuffix) {
   return "";
 }
 
-function renderIgnoredTogglePill({ toggleIgnoredHref, showIgnored }) {
+interface IgnoredToggleOptions {
+  toggleIgnoredHref: string | null | undefined;
+  showIgnored: boolean;
+}
+
+function renderIgnoredTogglePill({ toggleIgnoredHref, showIgnored }: IgnoredToggleOptions): string {
   const href = toggleIgnoredHref || "#";
   const label = showIgnored ? "Ignored: on" : "Ignored: off";
   return `<a class="pill link" data-no-preserve="ignored" href="${href}">${label}</a>`;
 }
 
-function renderMetaMenu({ gitInfo, brokenLinks, querySuffix, toggleIgnoredHref, showIgnored }) {
+interface MetaMenuOptions {
+  gitInfo: GitInfo | null;
+  brokenLinks: ScanState | null | undefined;
+  querySuffix: string | null | undefined;
+  toggleIgnoredHref: string | null | undefined;
+  showIgnored: boolean;
+}
+
+function renderMetaMenu({
+  gitInfo,
+  brokenLinks,
+  querySuffix,
+  toggleIgnoredHref,
+  showIgnored,
+}: MetaMenuOptions): string {
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
   const brokenState = brokenLinks;
   const brokenCount = brokenState?.lastResult?.broken?.length ?? null;
@@ -133,6 +169,18 @@ function renderMetaMenu({ gitInfo, brokenLinks, querySuffix, toggleIgnoredHref, 
 </details>`;
 }
 
+interface PageTemplateWithLinksOptions {
+  title: string;
+  repoName: string;
+  gitInfo: GitInfo | null;
+  relPathPosix: string | null | undefined;
+  bodyHtml: string;
+  brokenLinks: ScanState | null | undefined;
+  querySuffix: string | null | undefined;
+  toggleIgnoredHref: string | null | undefined;
+  showIgnored: boolean;
+}
+
 function pageTemplateWithLinks({
   title,
   repoName,
@@ -143,7 +191,7 @@ function pageTemplateWithLinks({
   querySuffix,
   toggleIgnoredHref,
   showIgnored,
-}) {
+}: PageTemplateWithLinksOptions): string {
   const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
   const brokenPill = renderBrokenLinksPill(brokenLinks, querySuffix);
@@ -190,6 +238,28 @@ function pageTemplateWithLinks({
 </html>`;
 }
 
+interface TreeRow {
+  isDir: boolean;
+  name: string;
+  href: string;
+  mtime: string;
+  mtimeMs?: number | null;
+  size: string;
+}
+
+interface TreePageOptions {
+  title: string;
+  repoName: string;
+  gitInfo: GitInfo | null;
+  brokenLinks: ScanState | null | undefined;
+  querySuffix: string | null | undefined;
+  toggleIgnoredHref: string | null | undefined;
+  showIgnored: boolean;
+  relPathPosix: string | null | undefined;
+  rows: TreeRow[];
+  readmeHtml: string | null | undefined;
+}
+
 export function renderTreePage({
   title,
   repoName,
@@ -201,7 +271,7 @@ export function renderTreePage({
   relPathPosix,
   rows,
   readmeHtml,
-}) {
+}: TreePageOptions): string {
   const tableRows = rows
     .map((r) => {
       const icon = r.isDir ? "dir" : "file";
@@ -250,6 +320,21 @@ ${readmeSection}`;
   });
 }
 
+interface FilePageOptions {
+  title: string;
+  repoName: string;
+  gitInfo: GitInfo | null;
+  brokenLinks: ScanState | null | undefined;
+  querySuffix: string | null | undefined;
+  toggleIgnoredHref: string | null | undefined;
+  showIgnored: boolean;
+  relPathPosix: string | null | undefined;
+  fileName: string;
+  isMarkdown: boolean;
+  mediaType?: string | null;
+  renderedHtml: string;
+}
+
 export function renderFilePage({
   title,
   repoName,
@@ -263,7 +348,7 @@ export function renderFilePage({
   isMarkdown,
   mediaType,
   renderedHtml,
-}) {
+}: FilePageOptions): string {
   const relDir = path.posix.dirname(relPathPosix || "");
   const suffix = querySuffix || "";
   const rawHref = `/raw/${encodePathForUrl(relPathPosix || "")}${suffix}`;
@@ -295,6 +380,22 @@ export function renderFilePage({
   });
 }
 
+interface DiffPageOptions {
+  title: string;
+  repoName: string;
+  gitInfo: GitInfo | null;
+  relPathPosix: string | null | undefined;
+  querySuffix: string | null | undefined;
+  base: string;
+  branches: string[];
+  tags: string[];
+  diffHtml: string;
+  tooLarge: boolean;
+  empty: boolean;
+  fileCount: number;
+  showAll: boolean;
+}
+
 export function renderDiffPage({
   title,
   repoName,
@@ -309,7 +410,7 @@ export function renderDiffPage({
   empty,
   fileCount,
   showAll,
-}) {
+}: DiffPageOptions): string {
   const branchOptions = branches
     .map((b) => {
       const sel = b === base ? " selected" : "";
@@ -391,12 +492,30 @@ export function renderDiffPage({
 </html>`;
 }
 
+interface ReviewThreadSummary {
+  id: string;
+  title: string;
+  messageCount: number;
+  unreadCount?: number;
+  readUntil?: number | null;
+  lastMessageId?: number | null;
+  lastActivityAt?: string | null;
+  createdAt: string;
+}
+
+interface ReviewListPageOptions {
+  title: string;
+  repoName: string;
+  gitInfo: GitInfo | null;
+  threads: ReviewThreadSummary[];
+}
+
 export function renderReviewListPage({
   title,
   repoName,
   gitInfo,
   threads,
-}) {
+}: ReviewListPageOptions): string {
   const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
 
@@ -452,7 +571,17 @@ export function renderReviewListPage({
 </html>`;
 }
 
-function renderCommentCard(c, msgId) {
+interface ReviewComment {
+  id: string;
+  messageId: string;
+  body: string;
+  createdAt: string;
+  resolved?: boolean;
+  anchorLine?: number | null;
+  anchorEndLine?: number | null;
+}
+
+function renderCommentCard(c: ReviewComment, msgId: string): string {
   return `<div class="review-comment-card${c.resolved ? " resolved" : ""}" data-comment-id="${escapeHtml(c.id)}" data-message-id="${escapeHtml(msgId)}" data-anchor-line="${c.anchorLine || ""}" data-anchor-end-line="${c.anchorEndLine || ""}">
   <div class="review-comment-header">
     <span class="review-comment-anchor">${c.anchorLine ? `Line ${c.anchorLine}${c.anchorEndLine && c.anchorEndLine !== c.anchorLine ? `-${c.anchorEndLine}` : ""}` : "General"}</span>
@@ -466,6 +595,27 @@ function renderCommentCard(c, msgId) {
 </div>`;
 }
 
+interface ReviewMessage {
+  id: string;
+  role: string;
+  createdAt: string;
+}
+
+interface ReviewThread {
+  id: string;
+  title: string;
+}
+
+interface ReviewThreadPageOptions {
+  title: string;
+  repoName: string;
+  gitInfo: GitInfo | null;
+  thread: ReviewThread;
+  messages: ReviewMessage[];
+  comments: ReviewComment[];
+  renderedMessages: string[];
+}
+
 export function renderReviewThreadPage({
   title,
   repoName,
@@ -474,7 +624,7 @@ export function renderReviewThreadPage({
   messages,
   comments,
   renderedMessages,
-}) {
+}: ReviewThreadPageOptions): string {
   const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
 
@@ -555,7 +705,12 @@ export function renderReviewThreadPage({
 </html>`;
 }
 
-export function renderErrorPage({ title, message }) {
+interface ErrorPageOptions {
+  title: string;
+  message: string;
+}
+
+export function renderErrorPage({ title, message }: ErrorPageOptions): string {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -575,6 +730,17 @@ export function renderErrorPage({ title, message }) {
 </html>`;
 }
 
+interface BrokenLinksPageOptions {
+  title: string;
+  repoName: string;
+  gitInfo: GitInfo | null;
+  relPathPosix: string | null | undefined;
+  scanState: ScanState | null | undefined;
+  querySuffix: string | null | undefined;
+  toggleIgnoredHref: string | null | undefined;
+  showIgnored: boolean;
+}
+
 export function renderBrokenLinksPage({
   title,
   repoName,
@@ -584,8 +750,8 @@ export function renderBrokenLinksPage({
   querySuffix,
   toggleIgnoredHref,
   showIgnored,
-}) {
-  const state = scanState || {};
+}: BrokenLinksPageOptions): string {
+  const state: Partial<ScanState> = scanState || {};
   const result = state.lastResult;
   const broken = result?.broken || [];
   const statusLine =
@@ -599,7 +765,7 @@ export function renderBrokenLinksPage({
           ? `Last error: ${escapeHtml(state.lastError)}`
           : "No scan yet.";
 
-  const grouped = new Map();
+  const grouped = new Map<string, typeof broken>();
   for (const b of broken) {
     const arr = grouped.get(b.source) || [];
     arr.push(b);

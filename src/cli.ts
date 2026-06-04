@@ -36,9 +36,18 @@ Environment:
 `);
 }
 
-function parseArgs(argv) {
-  const args = { watch: true };
-  const rest = [];
+interface ParsedArgs {
+  watch: boolean;
+  help?: boolean;
+  repo?: string;
+  port?: number;
+  host?: string;
+  rest: string[];
+}
+
+function parseArgs(argv: string[]): ParsedArgs {
+  const args: Omit<ParsedArgs, "rest"> = { watch: true };
+  const rest: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const value = argv[i];
     if (value === "-h" || value === "--help") args.help = true;

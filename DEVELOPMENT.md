@@ -4,25 +4,43 @@ This doc collects the “how it works” details so `README.md` can stay product
 
 ## Project layout
 
-- `src/server.js`: Express app wiring — vendor static mounts, builds a repo context, mounts the repo router
-- `src/repo-context.js`: per-repo runtime state (git info, gitignore matcher, link scanner, reload hub, file watcher)
-- `src/repo-router.js`: the per-repo routes (`/tree`, `/blob`, `/raw`, `/diff`, `/review`, `/events`, …) as an `express.Router` factory taking a context
-- `src/git.js` / `src/paths.js` / `src/format.js` / `src/csv.js` / `src/reload.js`: extracted helpers (git CLI, path safety, byte/date formatting, CSV parsing, SSE reload hub)
-- `src/markdown.js`: Markdown rendering + link/image rewriting + sanitization
-- `src/linkcheck.js`: broken-link scanner (Markdown → rendered HTML → internal link validation)
-- `src/gitignore.js`: `.gitignore` matcher (used for hiding + scanner noise reduction)
-- `src/views.js`: HTML templates (mobile-first top bar + GitHub-style Markdown shell)
+- `src/server.ts`: Express app wiring — vendor static mounts, builds a repo context, mounts the repo router
+- `src/repo-context.ts`: per-repo runtime state (git info, gitignore matcher, link scanner, reload hub, file watcher)
+- `src/repo-router.ts`: the per-repo routes (`/tree`, `/blob`, `/raw`, `/diff`, `/review`, `/events`, …) as an `express.Router` factory taking a context
+- `src/types.ts`: shared interfaces (`RepoContext`, `GitInfo`, `MarkdownRenderer`, `LinkScanner`, …)
+- `src/git.ts` / `src/paths.ts` / `src/format.ts` / `src/csv.ts` / `src/reload.ts`: extracted helpers (git CLI, path safety, byte/date formatting, CSV parsing, SSE reload hub)
+- `src/markdown.ts`: Markdown rendering + link/image rewriting + sanitization
+- `src/linkcheck.ts`: broken-link scanner (Markdown → rendered HTML → internal link validation)
+- `src/gitignore.ts`: `.gitignore` matcher (used for hiding + scanner noise reduction)
+- `src/views.ts`: HTML templates (mobile-first top bar + GitHub-style Markdown shell)
 - `public/`: CSS + client JS (live reload, KaTeX render, Mermaid render, diff collapse, query preservation)
 
 > The router is deliberately a context-taking factory so the planned multi-repo
 > session (see `docs/multi-repo-session.md`) can mount it per repo at `/r/:repoId`.
 
+## TypeScript
+
+The source is TypeScript (`src/*.ts`, `strict` mode). It compiles to `dist/` via
+`tsc` and the published package ships `dist/` (the `bin` points at `dist/cli.js`).
+
+```bash
+npm run build      # tsc → dist/
+npm run lint       # tsc --noEmit (type-check only)
+```
+
+`dist/` is git-ignored and rebuilt on `prepublishOnly`.
+
 ## Running locally
 
 ```bash
 npm install
-npm start -- --repo /path/to/repo --port 3000
+npm start -- --repo /path/to/repo --port 3000   # runs src via tsx (no build needed)
+# or, after a build:
+node dist/cli.js --repo /path/to/repo --port 3000
 ```
+
+`npm start` / `npm run dev` use `tsx` to run the TypeScript directly for fast
+iteration; `npm run build` produces the runnable `dist/` for publishing.
 
 Useful flags:
 - `--watch` / `--no-watch` (watch is on by default)
@@ -71,7 +89,7 @@ Notes:
 ## Lint
 
 ```bash
-npm run lint
+npm run lint   # tsc --noEmit — full strict type-check
 ```
 
 ## Release checklist

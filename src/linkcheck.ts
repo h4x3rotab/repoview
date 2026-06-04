@@ -1,17 +1,37 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import type {
+  LinkScanner,
+  ScanState,
+  ScanResult,
+  ScanOptions,
+  BrokenLink,
+  BrokenLinkKind,
+  MarkdownRenderer,
+  IgnoreOptions,
+} from "./types.js";
 
-function toPosixPath(p) {
+function toPosixPath(p: string): string {
   return p.split(path.sep).join("/");
 }
 
-function isWithinRoot(rootReal, candidateReal) {
+function isWithinRoot(rootReal: string, candidateReal: string): boolean {
   if (candidateReal === rootReal) return true;
   const rootWithSep = rootReal.endsWith(path.sep) ? rootReal : rootReal + path.sep;
   return candidateReal.startsWith(rootWithSep);
 }
 
-async function safeResolveExisting(repoRootReal, relPosixPath) {
+interface ResolveResult {
+  ok: boolean;
+  reason: "escape" | "missing" | null;
+  resolved: string | null;
+  type: "dir" | "file" | "other" | null;
+}
+
+async function safeResolveExisting(
+  repoRootReal: string,
+  relPosixPath: string
+): Promise<ResolveResult> {
   const stripped = String(relPosixPath || "").replace(/^\/+/, "");
   const resolved = path.resolve(repoRootReal, stripped);
   if (!isWithinRoot(repoRootReal, resolved)) {
@@ -24,7 +44,7 @@ async function safeResolveExisting(repoRootReal, relPosixPath) {
     return { ok: false, reason: "missing", resolved: null, type: null };
   }
 
-  let real;
+  let real: string;
   try {
     real = await fs.realpath(resolved);
   } catch {
@@ -43,10 +63,10 @@ async function safeResolveExisting(repoRootReal, relPosixPath) {
   };
 }
 
-function extractInternalUrlsFromHtml(html) {
-  const urls = [];
+function extractInternalUrlsFromHtml(html: string): string[] {
+  const urls: string[] = [];
   const re = /\b(?:href|src)=(["'])([^"']+)\1/gi;
-  let match;
+  let match: RegExpExecArray | null;
   while ((match = re.exec(html))) {
     const raw = match[2].trim();
     if (!raw || raw.startsWith("#")) continue;
@@ -55,7 +75,7 @@ function extractInternalUrlsFromHtml(html) {
   return urls;
 }
 
-function decodePosixPathFromUrlPath(urlPathname, prefix) {
+function decodePosixPathFromUrlPath(urlPathname: string, prefix: string): string | null {
   const rest = urlPathname.slice(prefix.length);
   const stripped = rest.replace(/^\/+/, "");
   const segments = stripped.split("/").filter(Boolean);
@@ -66,7 +86,7 @@ function decodePosixPathFromUrlPath(urlPathname, prefix) {
   }
 }
 
-function isMarkdownFile(relPosix) {
+function isMarkdownFile(relPosix: string): boolean {
   const lower = relPosix.toLowerCase();
   const base = path.posix.basename(lower);
   if (base === "readme" || base.startsWith("readme.")) return true;
@@ -74,13 +94,23 @@ function isMarkdownFile(relPosix) {
   return new Set(["md", "markdown", "mdown", "mkd", "mkdn"]).has(ext);
 }
 
-async function listMarkdownFiles(repoRootReal, { maxFiles, isIgnored } = {}) {
-  const results = [];
-  const stack = [{ abs: repoRootReal, relPosix: "" }];
+interface ListMarkdownOptions {
+  maxFiles?: number;
+  isIgnored?: (rel: string, opts?: IgnoreOptions) => boolean;
+}
+
+async function listMarkdownFiles(
+  repoRootReal: string,
+  { maxFiles, isIgnored }: ListMarkdownOptions = {}
+): Promise<string[]> {
+  const results: string[] = [];
+  const stack: Array<{ abs: string; relPosix: string }> = [
+    { abs: repoRootReal, relPosix: "" },
+  ];
   const ignoredNames = new Set([".git", "node_modules"]);
 
   while (stack.length) {
-    const { abs, relPosix } = stack.pop();
+    const { abs, relPosix } = stack.pop()!;
     let entries;
     try {
       entries = await fs.readdir(abs, { withFileTypes: true });
@@ -109,8 +139,16 @@ async function listMarkdownFiles(repoRootReal, { maxFiles, isIgnored } = {}) {
   return results;
 }
 
-export function createRepoLinkScanner({ repoRootReal, markdownRenderer, isIgnored }) {
-  let current = {
+export function createRepoLinkScanner({
+  repoRootReal,
+  markdownRenderer,
+  isIgnored,
+}: {
+  repoRootReal: string;
+  markdownRenderer: MarkdownRenderer;
+  isIgnored: (rel: string, opts?: IgnoreOptions) => boolean;
+}): LinkScanner {
+  let current: ScanState = {
     status: "idle",
     lastResult: null,
     lastError: null,
@@ -125,7 +163,7 @@ export function createRepoLinkScanner({ repoRootReal, markdownRenderer, isIgnore
     maxMarkdownFiles = 5000,
     maxBytesPerFile = 2 * 1024 * 1024,
     concurrency = 16,
-  } = {}) {
+  }: ScanOptions = {}): Promise<ScanResult> {
     const startedAt = Date.now();
     current = { ...current, status: "running", lastError: null, lastStartedAt: startedAt };
 
@@ -133,7 +171,7 @@ export function createRepoLinkScanner({ repoRootReal, markdownRenderer, isIgnore
       maxFiles: maxMarkdownFiles,
       isIgnored,
     });
-    const broken = [];
+    const broken: BrokenLink[] = [];
     let filesScanned = 0;
     let urlsChecked = 0;
 
@@ -152,7 +190,7 @@ export function createRepoLinkScanner({ repoRootReal, markdownRenderer, isIgnore
         }
         if (stat.size > maxBytesPerFile) continue;
 
-        let text;
+        let text: string;
         try {
           text = await fs.readFile(abs, "utf8");
         } catch {
@@ -177,7 +215,7 @@ export function createRepoLinkScanner({ repoRootReal, markdownRenderer, isIgnore
           if (raw.startsWith("data:")) continue;
           urlsChecked++;
 
-          let urlPath;
+          let urlPath: string;
           try {
             urlPath = new URL(raw, "http://local").pathname;
           } catch {
@@ -193,8 +231,8 @@ export function createRepoLinkScanner({ repoRootReal, markdownRenderer, isIgnore
           if (urlPath === "/events" || urlPath.startsWith("/static/")) continue;
           if (urlPath === "/broken-links" || urlPath === "/broken-links.json") continue;
 
-          let expected = null;
-          let expectType = null;
+          let expected: string | null = null;
+          let expectType: BrokenLinkKind | null = null;
           if (urlPath.startsWith("/blob/")) {
             expected = decodePosixPathFromUrlPath(urlPath, "/blob/");
             expectType = "blob";
@@ -265,7 +303,7 @@ export function createRepoLinkScanner({ repoRootReal, markdownRenderer, isIgnore
     await Promise.all(workers);
 
     const finishedAt = Date.now();
-    const result = {
+    const result: ScanResult = {
       startedAt,
       finishedAt,
       durationMs: finishedAt - startedAt,
@@ -284,7 +322,7 @@ export function createRepoLinkScanner({ repoRootReal, markdownRenderer, isIgnore
     return result;
   }
 
-  async function triggerScan(options) {
+  async function triggerScan(options?: ScanOptions): Promise<ScanState> {
     if (scanRunning) {
       scanQueued = true;
       return current;
@@ -293,7 +331,11 @@ export function createRepoLinkScanner({ repoRootReal, markdownRenderer, isIgnore
     try {
       await scanOnce(options);
     } catch (e) {
-      current = { ...current, status: "idle", lastError: String(e?.message || e) };
+      current = {
+        ...current,
+        status: "idle",
+        lastError: String((e as { message?: unknown })?.message || e),
+      };
     } finally {
       scanRunning = false;
       if (scanQueued) {
@@ -304,7 +346,7 @@ export function createRepoLinkScanner({ repoRootReal, markdownRenderer, isIgnore
     return current;
   }
 
-  function getState() {
+  function getState(): ScanState {
     return current;
   }
 

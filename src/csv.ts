@@ -1,6 +1,6 @@
-export function parseCsv(text, delimiter = ",") {
-  const rows = [];
-  let current = [];
+export function parseCsv(text: string, delimiter = ","): string[][] {
+  const rows: string[][] = [];
+  let current: string[] = [];
   let cell = "";
   let inQuotes = false;
 
@@ -44,7 +44,10 @@ export function parseCsv(text, delimiter = ",") {
   return rows;
 }
 
-export function renderCsvTable(rows, escFn) {
+export function renderCsvTable(
+  rows: string[][],
+  escFn: (s: unknown) => string,
+): string {
   if (!rows.length) return "<p>Empty file</p>";
   const header = rows[0];
   const body = rows.slice(1);
