@@ -40,7 +40,7 @@
   "scripts": {
     "start": "node src/cli.js",
     "dev": "node src/cli.js --watch",
-    "lint": "node -c src/cli.js && node -c src/server.js && node -c src/markdown.js && node -c src/views.js && node -c src/review-cli.js",
+    "lint": "for f in src/cli.js src/server.js src/repo-context.js src/repo-router.js src/git.js src/paths.js src/format.js src/csv.js src/reload.js src/markdown.js src/views.js src/review-cli.js; do node -c \"$f\" || exit 1; done",
     "test": "npx playwright test",
     "test:headed": "npx playwright test --headed"
   },

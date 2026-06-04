@@ -1,0 +1,73 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import chokidar from "chokidar";
+
+import { loadGitIgnoreMatcher } from "./gitignore.js";
+import { createRepoLinkScanner } from "./linkcheck.js";
+import { getGitInfo } from "./git.js";
+import { createReloadHub } from "./reload.js";
+
+/**
+ * Build the per-repo runtime state. Each context owns its own git info,
+ * gitignore matcher, link scanner, review dir, reload hub and (optionally) a
+ * filesystem watcher. The markdown renderer is shared across repos and passed in.
+ */
+export async function createRepoContext({ id, repoRoot, md, watch = true }) {
+  const repoRootReal = await fs.realpath(repoRoot);
+  const repoName = path.basename(repoRootReal);
+  const gitInfo = await getGitInfo(repoRootReal);
+  const reloadHub = createReloadHub();
+  const reviewDir = path.join(repoRootReal, ".repoview", "reviews");
+
+  const ctx = {
+    id: id ?? repoName,
+    repoRootReal,
+    repoName,
+    gitInfo,
+    reloadHub,
+    reviewDir,
+    md,
+    ignoreMatcher: await loadGitIgnoreMatcher(repoRootReal),
+    linkScanner: null,
+    watcher: null,
+  };
+
+  const isIgnored = (relPosix, opts) => ctx.ignoreMatcher.ignores(relPosix, opts);
+  ctx.isIgnored = isIgnored;
+  ctx.linkScanner = createRepoLinkScanner({ repoRootReal, markdownRenderer: md, isIgnored });
+
+  void ctx.linkScanner.triggerScan();
+
+  if (watch) {
+    const watcher = chokidar.watch(repoRootReal, {
+      ignored: [
+        /(^|[/\\])\.git([/\\]|$)/,
+        /(^|[/\\])node_modules([/\\]|$)/,
+        /(^|[/\\])\.repoview([/\\]|$)/,
+      ],
+      ignoreInitial: true,
+      ignorePermissionErrors: true,
+    });
+    watcher.on("error", () => {
+      // Silently ignore watch errors (e.g., permission denied)
+    });
+    let pending = null;
+    watcher.on("all", () => {
+      if (pending) return;
+      pending = setTimeout(() => {
+        pending = null;
+        reloadHub.broadcastReload();
+        void loadGitIgnoreMatcher(repoRootReal).then((m) => (ctx.ignoreMatcher = m));
+        void ctx.linkScanner.triggerScan();
+      }, 100);
+    });
+    ctx.watcher = watcher;
+  }
+
+  ctx.close = async () => {
+    reloadHub.close();
+    if (ctx.watcher) await ctx.watcher.close();
+  };
+
+  return ctx;
+}

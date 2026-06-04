@@ -4,12 +4,18 @@ This doc collects the “how it works” details so `README.md` can stay product
 
 ## Project layout
 
-- `src/server.js`: Express server + routes (`/tree`, `/blob`, `/raw`, `/diff`, `/events`)
+- `src/server.js`: Express app wiring — vendor static mounts, builds a repo context, mounts the repo router
+- `src/repo-context.js`: per-repo runtime state (git info, gitignore matcher, link scanner, reload hub, file watcher)
+- `src/repo-router.js`: the per-repo routes (`/tree`, `/blob`, `/raw`, `/diff`, `/review`, `/events`, …) as an `express.Router` factory taking a context
+- `src/git.js` / `src/paths.js` / `src/format.js` / `src/csv.js` / `src/reload.js`: extracted helpers (git CLI, path safety, byte/date formatting, CSV parsing, SSE reload hub)
 - `src/markdown.js`: Markdown rendering + link/image rewriting + sanitization
 - `src/linkcheck.js`: broken-link scanner (Markdown → rendered HTML → internal link validation)
 - `src/gitignore.js`: `.gitignore` matcher (used for hiding + scanner noise reduction)
 - `src/views.js`: HTML templates (mobile-first top bar + GitHub-style Markdown shell)
 - `public/`: CSS + client JS (live reload, KaTeX render, Mermaid render, diff collapse, query preservation)
+
+> The router is deliberately a context-taking factory so the planned multi-repo
+> session (see `docs/multi-repo-session.md`) can mount it per repo at `/r/:repoId`.
 
 ## Running locally
 
