@@ -4,19 +4,21 @@ This doc collects the “how it works” details so `README.md` can stay product
 
 ## Project layout
 
-- `src/server.ts`: Express app wiring — vendor static mounts, builds a repo context, mounts the repo router
+- `src/server.ts`: Express app wiring — vendor static mounts, the control API, the `/r/:repoId` repos router, the `/session` page, and legacy redirects
+- `src/session.ts`: a session owning multiple repos (add/remove/list, slug ids, default repo)
+- `src/api.ts`: control API router (`/api/session`, `/api/repos`, `/api/shutdown`); mutations loopback-guarded
 - `src/repo-context.ts`: per-repo runtime state (git info, gitignore matcher, link scanner, reload hub, file watcher)
-- `src/repo-router.ts`: the per-repo routes (`/tree`, `/blob`, `/raw`, `/diff`, `/review`, `/events`, …) as an `express.Router` factory taking a context
-- `src/types.ts`: shared interfaces (`RepoContext`, `GitInfo`, `MarkdownRenderer`, `LinkScanner`, …)
+- `src/repo-router.ts`: the per-repo routes (`/tree`, `/blob`, `/raw`, `/diff`, `/review`, `/events`, …) as a router that resolves `/r/:repoId` → a per-repo child router
+- `src/net.ts`: loopback helpers (control-endpoint guard, bind-host check)
+- `src/types.ts`: shared interfaces (`RepoContext`, `Session`/`RepoSummary`, `GitInfo`, `MarkdownRenderer`, `LinkScanner`, …)
 - `src/git.ts` / `src/paths.ts` / `src/format.ts` / `src/csv.ts` / `src/reload.ts`: extracted helpers (git CLI, path safety, byte/date formatting, CSV parsing, SSE reload hub)
-- `src/markdown.ts`: Markdown rendering + link/image rewriting + sanitization
+- `src/markdown.ts`: Markdown rendering + link/image rewriting (repo-prefixed) + sanitization
 - `src/linkcheck.ts`: broken-link scanner (Markdown → rendered HTML → internal link validation)
 - `src/gitignore.ts`: `.gitignore` matcher (used for hiding + scanner noise reduction)
-- `src/views.ts`: HTML templates (mobile-first top bar + GitHub-style Markdown shell)
-- `public/`: CSS + client JS (live reload, KaTeX render, Mermaid render, diff collapse, query preservation)
+- `src/views.ts`: HTML templates (mobile-first top bar + repo switcher + GitHub-style Markdown shell)
+- `public/`: CSS + client JS (live reload, KaTeX render, Mermaid render, diff collapse, query preservation, session management)
 
-> The router is deliberately a context-taking factory so the planned multi-repo
-> session (see `docs/multi-repo-session.md`) can mount it per repo at `/r/:repoId`.
+> See `docs/multi-repo-session.md` for the full multi-repo session design.
 
 ## TypeScript
 
@@ -28,7 +30,8 @@ npm run build      # tsc → dist/
 npm run lint       # tsc --noEmit (type-check only)
 ```
 
-`dist/` is git-ignored and rebuilt on `prepublishOnly`.
+`dist/` is git-ignored and rebuilt on `prepack` (so `npm pack` / `npm publish`
+always ship a fresh build).
 
 ## Running locally
 
@@ -48,23 +51,33 @@ Useful flags:
 
 ## Routes
 
+Every repo is served behind a `/r/<id>` prefix (the repo's slug id). Legacy
+non-prefixed paths (`/`, `/tree`, `/blob`, `/raw`, `/diff`, `/review`,
+`/broken-links`, `/events`, `/rev`) redirect to the default (first) repo.
+
+Per-repo routes (under `/r/<id>`):
 - `GET /tree/<path>`: directory listing (applies `.gitignore` by default; `?ignored=1` shows ignored)
 - `GET /blob/<path>`: file view (Markdown rendered; non-Markdown shown as highlighted text)
 - `GET /raw/<path>`: raw bytes (used for images and downloads)
-- `GET /events`: Server-Sent Events stream for live reload
+- `GET /events`: Server-Sent Events stream for live reload (`GET /rev` is the polling fallback)
 - `GET /diff`: diff view — compare working tree against a base ref (`?base=HEAD` default; accepts branches, tags)
-- `GET /broken-links`: HTML report for broken internal links (Markdown docs)
-- `GET /broken-links.json`: report state + raw results
+- `GET /review/…`: code review threads
+- `GET /broken-links[.json]`: broken internal link report
+
+Session-level routes:
+- `GET /session`: manage repos (open / add / remove); read-only for non-loopback clients
+- `GET /api/session`: session signature + repo list (also the join handshake)
+- `GET /api/repos`, `POST /api/repos`, `DELETE /api/repos/:id`, `POST /api/shutdown`: control API (mutations are loopback-only)
 
 ## Link rewriting rules
 
-`src/markdown.js` rewrites relative Markdown links so they stay inside the repo UI:
+`src/markdown.ts` rewrites relative Markdown links so they stay inside the repo UI:
 
-- Links → `/blob/<path>` (or `/tree/<path>` when the link ends with `/`)
-- Images → `/raw/<path>`
+- Links → `<repoBase>/blob/<path>` (or `<repoBase>/tree/<path>` when the link ends with `/`), where `repoBase` is `/r/<id>`
+- Images → `<repoBase>/raw/<path>`
 - Same rewriting is applied to HTML inside Markdown (`<a href>`, `<img src>`) after sanitization.
 - Paths that would escape the repo root (leading `../`) are clamped to the repo root (GitHub-like).
-- Already-internal links (`/blob/…`, `/tree/…`, `/raw/…`, `/static/…`) are not rewritten again.
+- Already-internal links (`/blob/…`, `/tree/…`, `/raw/…`, `/static/…`, and anything already under `repoBase`) are not rewritten again.
 
 ## Markdown “GitHub-like” features
 

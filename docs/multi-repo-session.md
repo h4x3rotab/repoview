@@ -123,17 +123,16 @@ auth beyond the loopback guard; registering remote repos.
 
 ## Testing
 
-End-to-end coverage uses the **Chrome DevTools MCP** (browser automation) rather
-than the legacy Playwright suite for the new flows — drive a real Chrome via the
-MCP tools to:
-
-- start a session, register a second repo via a second CLI invocation, and assert
-  it exits without blocking;
-- exercise the topbar repo switcher and confirm navigation between `/r/<id>/…`;
-- verify per-repo live reload (a change in repo A reloads only repo A's pages);
-- check `ls` / `rm` reflect in the frontend switcher.
-
-Unit/lint coverage stays via `npm run lint`.
+- **`npm test`** runs the `node:test` HTTP integration suite
+  (`tests/integration/`) — boots the server in-process from `dist/` and drives it
+  over HTTP. Covers the session API, `/r/<id>` routing, legacy redirects, repo
+  registration / idempotency / slug-disambiguation, the `/session` page,
+  loopback/`canManage` gating, and the unknown-repo fallback. No browser needed.
+- **`npm run lint`** is `tsc --noEmit` (full strict type-check).
+- The rich browsing/review UI is covered by the Playwright suite (`test:e2e`,
+  needs installed browsers). New multi-repo browser flows (switcher navigation,
+  add/remove from the session page, per-repo live reload) are exercised manually
+  via the **Chrome DevTools MCP**.
 
 ## Prep refactor
 

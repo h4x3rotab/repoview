@@ -38,6 +38,14 @@ All notable changes to this project are documented here. This project adheres to
   double-rewrite during sanitization).
 - Repo switcher dropdown stays on-screen on narrow viewports (left-anchored).
 
+### Upgrade notes (0.5.x → 0.6.0)
+- **Default port changed** from `3000` to `7376`. If you relied on the old
+  default, pass `--port 3000` (or set `$PORT`).
+- **URLs are now repo-prefixed** (`/r/<id>/…`). Old bookmarks to `/tree/…`,
+  `/blob/…`, etc. still work — they redirect to the default repo — but the
+  canonical URL now includes the repo id.
+- No data migration is needed; review threads under `.repoview/` are unchanged.
+
 ## 0.5.1
 
 - Render Markdown frontmatter as a styled header.
