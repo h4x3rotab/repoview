@@ -43,8 +43,9 @@
     "dev": "tsx src/cli.ts --watch",
     "lint": "tsc --noEmit",
     "prepack": "npm run build",
-    "test": "npx playwright test",
-    "test:headed": "npx playwright test --headed"
+    "test": "npm run build && node --test \"tests/integration/**/*.test.mjs\"",
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed"
   },
   "dependencies": {
     "chokidar": "^4.0.3",

@@ -186,7 +186,8 @@ async function cleanupReviewData() {
 /** Start the server and wait for it to be ready */
 function startServer() {
   return new Promise((resolve, reject) => {
-    const proc = spawn("node", ["src/cli.js", "--repo", REPO_ROOT, "--port", String(PORT), "--no-watch"], {
+    // Run the TypeScript CLI directly via tsx (no build step needed).
+    const proc = spawn("npx", ["tsx", "src/cli.ts", "--repo", REPO_ROOT, "--port", String(PORT), "--no-watch"], {
       cwd: REPO_ROOT,
       stdio: ["ignore", "pipe", "pipe"],
     });

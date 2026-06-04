@@ -143,14 +143,17 @@ export async function startServer({
     });
   });
 
-  const defaultId = session.getDefaultId();
-  // eslint-disable-next-line no-console
-  console.log(`repoview: ${require("node:path").resolve(repoRoot)}`);
-  // eslint-disable-next-line no-console
-  console.log(`listening: http://${host}:${port}`);
-  if (defaultId) {
+  // `port: 0` picks an ephemeral port (used by tests) — stay quiet there.
+  if (port !== 0) {
+    const defaultId = session.getDefaultId();
     // eslint-disable-next-line no-console
-    console.log(`open: http://${host}:${port}/r/${defaultId}/tree/`);
+    console.log(`repoview: ${path.resolve(repoRoot)}`);
+    // eslint-disable-next-line no-console
+    console.log(`listening: http://${host}:${port}`);
+    if (defaultId) {
+      // eslint-disable-next-line no-console
+      console.log(`open: http://${host}:${port}/r/${defaultId}/tree/`);
+    }
   }
 
   return { app, server, session, host, port };

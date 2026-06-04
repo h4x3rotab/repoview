@@ -92,6 +92,23 @@ Notes:
 npm run lint   # tsc --noEmit — full strict type-check
 ```
 
+## Tests
+
+```bash
+npm test        # build + node:test HTTP integration suite (no browser needed)
+npm run test:e2e   # Playwright browser suite (requires installed browsers)
+```
+
+- `tests/integration/*.test.mjs` boots the server in-process (from `dist/`) and
+  drives it over HTTP — covering the session API, `/r/<id>` routing, legacy
+  redirects, repo registration/idempotency/slug-disambiguation, the session
+  page, and the unknown-repo fallback. This is the default `npm test` and runs
+  anywhere.
+- The Playwright suite (`tests/frontend.spec.js`) covers the rich browsing/review
+  UI in a real browser; it needs `npx playwright install` and is run as
+  `test:e2e`. New multi-repo flows are exercised via the Chrome DevTools MCP
+  (see `docs/multi-repo-session.md`).
+
 ## Release checklist
 
 Before publishing to npm, run a quick smoke test from a clean install context (this catches issues where the server accidentally serves assets from the *repo* instead of the installed package):
