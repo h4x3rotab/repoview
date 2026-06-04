@@ -1728,6 +1728,13 @@ a {
 .repo-switcher summary::-webkit-details-marker {
   display: none;
 }
+/* The switcher sits on the left of the topbar, so its panel grows rightward
+   (the shared .menu-panel defaults to right:0 for the right-aligned More menu). */
+.repo-switcher .menu-panel {
+  right: auto;
+  left: 0;
+  max-width: calc(100vw - 24px);
+}
 .menu-item.current {
   font-weight: 600;
 }
