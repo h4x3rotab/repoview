@@ -14,13 +14,13 @@ the same port join one shared session (like tmux) — the first run starts the
 daemon, later runs register their repo and exit.
 
 Usage:
-  npx repoview [--repo /path/to/repo] [--host 0.0.0.0] [--port 3000] [--no-watch]
-  repoview [--repo /path/to/repo] [--host 0.0.0.0] [--port 3000] [--no-watch]
+  npx repoview [--repo /path/to/repo] [--host 0.0.0.0] [--port 7376] [--no-watch]
+  repoview [--repo /path/to/repo] [--host 0.0.0.0] [--port 7376] [--no-watch]
 
 Options:
   --repo <path>     Repository root (default: REPO_ROOT or current dir)
   --host <host>     Bind address (default: 0.0.0.0)
-  --port <port>     Bind/session port (default: 3000)
+  --port <port>     Bind/session port (default: 7376)
   --watch           Enable live reload (default)
   --no-watch        Disable live reload
   -h, --help        Show this help
@@ -214,7 +214,7 @@ if (portArg != null && !Number.isFinite(portArg)) {
   process.exit(2);
 }
 
-const port = portArg || Number(process.env.PORT) || 3000;
+const port = portArg || Number(process.env.PORT) || 7376;
 const host = hostArg || process.env.HOST || "0.0.0.0";
 const base = `http://${connectHost(host)}:${port}`;
 

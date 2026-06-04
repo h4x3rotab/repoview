@@ -20,23 +20,23 @@ Not affiliated with GitHub.
 
 ```bash
 npm install
-npm start -- --repo /path/to/your/repo --port 3000
+npm start -- --repo /path/to/your/repo --port 7376
 ```
 
-Then open `http://localhost:3000`.
+Then open `http://localhost:7376`.
 
 ## Quick start (npx)
 
 From anywhere:
 
 ```bash
-npx repoview --repo /path/to/your/repo --port 3000
+npx repoview --repo /path/to/your/repo --port 7376
 ```
 
 By default, `repoview` binds to `0.0.0.0` (LAN-accessible). For localhost-only:
 
 ```bash
-npx repoview --repo /path/to/your/repo --host 127.0.0.1 --port 3000
+npx repoview --repo /path/to/your/repo --host 127.0.0.1 --port 7376
 ```
 
 ## Shared sessions (multi-repo)
@@ -46,9 +46,9 @@ join it instead of failing — they register their repo and exit immediately
 (no need to remember a port per repo):
 
 ```bash
-cd ~/work/api    && repoview            # starts the session on :3000
-cd ~/work/web    && repoview            # joins :3000, registers, exits
-cd ~/work/docs   && repoview            # joins :3000, registers, exits
+cd ~/work/api    && repoview            # starts the session on :7376
+cd ~/work/web    && repoview            # joins :7376, registers, exits
+cd ~/work/docs   && repoview            # joins :7376, registers, exits
 ```
 
 Each repo is served at `/r/<id>/…`; switch between them from the dropdown in the
@@ -78,7 +78,7 @@ Use `--port` to run independent sessions side by side.
 ## Usage
 
 ```bash
-npm start -- [--repo /path/to/repo] [--host 0.0.0.0] [--port 3000] [--no-watch]
+npm start -- [--repo /path/to/repo] [--host 0.0.0.0] [--port 7376] [--no-watch]
 ```
 
 Common flags:

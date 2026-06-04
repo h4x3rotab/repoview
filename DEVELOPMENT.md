@@ -34,9 +34,9 @@ npm run lint       # tsc --noEmit (type-check only)
 
 ```bash
 npm install
-npm start -- --repo /path/to/repo --port 3000   # runs src via tsx (no build needed)
+npm start -- --repo /path/to/repo --port 7376   # runs src via tsx (no build needed)
 # or, after a build:
-node dist/cli.js --repo /path/to/repo --port 3000
+node dist/cli.js --repo /path/to/repo --port 7376
 ```
 
 `npm start` / `npm run dev` use `tsx` to run the TypeScript directly for fast
@@ -124,5 +124,5 @@ npm init -y
 npm install /path/to/repoview-*.tgz
 
 # serve any repo and verify vendor assets load (no ENOENT)
-node ./node_modules/.bin/repoview --repo /path/to/repo --port 3000
+node ./node_modules/.bin/repoview --repo /path/to/repo --port 7376
 ```

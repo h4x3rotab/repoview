@@ -26,7 +26,7 @@ exit. Repos are managed from the CLI or switched in the frontend.
 
 ### 1. Session = daemon on a port
 
-A *session* is one daemon process owning a port (default 3000). It holds N
+A *session* is one daemon process owning a port (default 7376). It holds N
 registered repos in memory as a `Map<repoId, RepoContext>` plus an
 insertion-ordered list (first = the "default" repo; also the switcher order).
 
