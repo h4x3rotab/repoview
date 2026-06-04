@@ -7,44 +7,78 @@ import type { RepoSummary } from "./types.js";
 
 function printHelp() {
   // Keep this in sync with README.md
-  process.stdout.write(`repoview
+  process.stdout.write(`repoview — browse local Git repos as a GitHub-like website, and publish
+ephemeral file previews ("gists"). Built to be driven by humans and agents.
 
-Serve local Git repositories as a GitHub-like website. Multiple invocations on
-the same port join one shared session (like tmux) — the first run starts the
-daemon, later runs register their repo and exit.
+SESSION MODEL (like tmux)
+  Invocations on the same port share ONE session (daemon). The FIRST run starts
+  the daemon and KEEPS RUNNING in the foreground (it is the server). LATER runs
+  on that port just register their repo and exit 0 immediately. So you never have
+  to remember a port per repo. Each repo is served at /r/<id>/...
+  Default port: 7376. Use --port for independent sessions.
+  Agent tip: background the first run (e.g. \`repoview … &\` or nohup); once it
+  prints "listening:", the daemon is up and all other commands below will work.
 
-Usage:
-  npx repoview [--repo /path/to/repo] [--host 0.0.0.0] [--port 7376] [--no-watch]
-  repoview [--repo /path/to/repo] [--host 0.0.0.0] [--port 7376] [--no-watch]
+START / JOIN A SESSION
+  repoview [--repo PATH] [--host HOST] [--port N] [--no-watch]
+    If no daemon is on --port: becomes the daemon (blocks/foreground).
+    If a daemon is already there: registers the repo, prints its URL, exits 0.
 
-Options:
-  --repo <path>     Repository root (default: REPO_ROOT or current dir)
-  --host <host>     Bind address (default: 0.0.0.0)
-  --port <port>     Bind/session port (default: 7376)
-  --watch           Enable live reload (default)
-  --no-watch        Disable live reload
-  -h, --help        Show this help
+  Options:
+    --repo <path>   Repo root (default: $REPO_ROOT or current dir)
+    --host <host>   Bind address (default: 0.0.0.0; use 127.0.0.1 for local-only)
+    --port <port>   Session port (default: 7376)
+    --no-watch      Disable live reload for this repo
+    -h, --help      Show this help
 
-Session subcommands (target the daemon on --port):
-  repoview ls                     List repos in the session
-  repoview rm <id|path>           Unregister a repo from the session
-  repoview stop                   Shut the session daemon down
+MANAGE THE SESSION (require a running daemon on --port)
+  repoview ls                 List repos: "<id> <branch> <path>" + each URL
+  repoview rm <id|path>       Unregister a repo
+  repoview stop               Shut the session daemon down
 
-Gist subcommands (publish an ephemeral file, default TTL 24h):
-  repoview gist <file> [--title "…"] [--ttl 24h] [--filename name]
-  cat notes.md | repoview gist --filename notes.md   Publish from stdin
-  repoview gist <file> --url https://repoview.example.com   Target a remote server
-  (prints a preview URL; gists expire and do not survive a restart)
+PUBLISH A GIST (ephemeral file preview; default TTL 24h, gone on restart)
+  repoview gist <file> [--title "T"] [--ttl 24h] [--filename name.md] [--url URL]
+  cat report.md | repoview gist --filename report.md      (reads stdin)
+    Needs a running daemon on --port (or use --url for a remote server). Prints
+    ONE line: the preview URL. --ttl accepts 30m/24h/7d/seconds (1m–7d).
+    Note: --title is the page/list label only; the rendered H1 still comes from
+    the file's own first Markdown heading.
 
-Review subcommands:
-  repoview review new --title "Title"               Create a new review thread
-  repoview review post <id> --role agent --body "…" Post a message to a thread
-  repoview review post <id> --role agent --file f   Post from file
-  repoview review read <id>                          Read thread messages + comments
-  repoview review list                               List all threads
+CODE REVIEW THREADS (pure filesystem, NO daemon — operate on a repo's .repoview/)
+  Add --repo <path> to EVERY review command (default: $REPO_ROOT or cwd — NOT the
+  session's served repo). --port/--host are ignored here.
+  repoview review new   --repo R --title "Title"               Create (prints id)
+  repoview review post  --repo R <id> --role agent --body "…"  Post a message
+  repoview review post  --repo R <id> --role agent --file F    Post from file/stdin
+  repoview review read  --repo R <id>                          Print thread JSON
+  repoview review list  --repo R                               List threads (JSON)
 
-Environment:
-  REPO_ROOT, HOST, PORT
+HTTP API (for agents / remote use — base = http://<host>:<port>)
+  GET    /api/session            {app, version, repos:[{id,name,path,branch}]}
+  GET    /api/repos              {repos:[…]}
+  POST   /api/repos              {path, watch?} → {id, url}        (localhost only)
+  DELETE /api/repos/:id          → {ok}                           (localhost only)
+  POST   /api/shutdown           → {ok}                           (localhost only)
+  POST   /api/gists              {content, filename?, title?, ttlSeconds?}
+                                 → {id, url, rawUrl, expiresAt}
+  Examples:
+    curl -s $BASE/api/session
+    curl -s -X POST $BASE/api/gists -H 'content-type: application/json' \\
+      -d '{"content":"# Hi","filename":"hi.md","ttlSeconds":3600}'
+
+PAGES
+  /                 → default repo            /session   manage repos (add/remove)
+  /r/<id>/tree/     browse a repo            /gists     list of active gists
+  /r/<id>/diff      working-tree diff        /gist/<id> a gist preview (+ /raw)
+  /r/<id>/review/   review threads
+
+ENVIRONMENT
+  REPO_ROOT          Default repo when --repo is omitted
+  HOST, PORT         Default bind host / session port
+  REPOVIEW_BASE_URL  Absolute origin used in returned gist URLs. Read by the
+                     SERVER/daemon at request time — set it when STARTING the
+                     daemon, not on the gist client. Falls back to the request
+                     Host header. (e.g. when the server runs remotely)
 `);
 }
 

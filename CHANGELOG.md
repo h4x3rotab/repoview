@@ -19,6 +19,13 @@ All notable changes to this project are documented here. This project adheres to
   request `Host` header.
 - A **Gists** link in the top bar (and on the session page) → the `/gists` list.
 
+### Changed
+- **Rewrote `--help`** to be comprehensive and agent-friendly: documents the
+  daemon lifecycle (first run is the foreground server; later runs exit), all
+  subcommands and their daemon/`--repo` requirements, the HTTP control + gist API
+  with example payloads, the page map, and env vars (incl. that
+  `REPOVIEW_BASE_URL` is read by the server, not the client).
+
 ## 0.6.0 — 2026-06-04
 
 ### Added
