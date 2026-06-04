@@ -89,6 +89,34 @@ export interface ReloadHub {
   close(): void;
 }
 
+/** An ephemeral published file ("gist"). Lives in memory only. */
+export interface Gist {
+  id: string;
+  title: string | null;
+  filename: string;
+  content: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+export interface GistInput {
+  content: string;
+  filename?: string;
+  title?: string;
+  /** Time-to-live in ms; clamped to the store's bounds. Defaults to 24h. */
+  ttlMs?: number;
+}
+
+export interface GistStore {
+  create(input: GistInput): Gist;
+  /** Returns the gist, or undefined if missing or expired. */
+  get(id: string): Gist | undefined;
+  /** Active (non-expired) gists, newest first. */
+  list(): Gist[];
+  delete(id: string): boolean;
+  close(): void;
+}
+
 /** All per-repo runtime state, bundled so routes can be served per repo. */
 export interface RepoContext {
   id: string;

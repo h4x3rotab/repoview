@@ -3,6 +3,22 @@
 All notable changes to this project are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 0.7.0 (unreleased)
+
+### Added
+- **Ephemeral gists.** Publish an arbitrary file (usually Markdown) to a running
+  session and get a shareable preview URL — for agents that generate a doc and
+  want the user to read it.
+  - `POST /api/gists` `{content, filename?, title?, ttlSeconds?}` → `{id, url, rawUrl, expiresAt}`
+  - `GET /gist/:id` (rendered preview), `GET /gist/:id/raw`, `GET /gists` (list)
+  - CLI: `repoview gist <file> [--title] [--ttl 24h] [--filename] [--url]`, or from stdin
+  - Gists are **in memory only** (don't survive a restart) and expire after a TTL
+    (default 24h, clamped 1m–7d); capped at 1 MB / 500 gists.
+- **`REPOVIEW_BASE_URL`** env var sets the absolute origin used in returned gist
+  URLs (so a remotely-running server returns clickable links). Falls back to the
+  request `Host` header.
+- A **Gists** link in the top bar (and on the session page) → the `/gists` list.
+
 ## 0.6.0 — 2026-06-04
 
 ### Added

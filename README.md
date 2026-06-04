@@ -69,6 +69,35 @@ Use `--port` to run independent sessions side by side.
 > the `/session` page is read-only for remote viewers. Use `--host 127.0.0.1` to
 > keep a session fully local.
 
+## Gists (ephemeral file previews)
+
+Publish an arbitrary file (usually Markdown) to a running session and get a
+shareable preview URL — handy for agents that generate a doc and want the user to
+read it. Gists live **in memory only** (they don't survive a restart) and expire
+after a TTL (default **24h**).
+
+```bash
+repoview gist NOTES.md --title "Release plan"      # prints a preview URL
+cat report.md | repoview gist --filename report.md # from stdin
+repoview gist out.md --ttl 2h                       # custom TTL (1m–7d)
+```
+
+Or over HTTP (e.g. from a remote agent):
+
+```bash
+curl -X POST "$BASE/api/gists" -H 'content-type: application/json' \
+  -d '{"content":"# Hi","filename":"hi.md","ttlSeconds":3600}'
+# → { "url": "…/gist/<id>", "rawUrl": "…/gist/<id>/raw", "expiresAt": "…" }
+```
+
+All gists are listed at **`/gists`** (linked from the top bar) so the user can
+always find them. Set **`REPOVIEW_BASE_URL`** so a remotely-running server returns
+absolute, clickable URLs:
+
+```bash
+REPOVIEW_BASE_URL=https://repoview.example.com repoview --host 0.0.0.0
+```
+
 ## Why
 
 - Keep GitHub as a remote, not your developer portal.

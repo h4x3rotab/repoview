@@ -1,5 +1,121 @@
 import path from "node:path";
-import type { GitInfo, ScanState, RepoSummary } from "./types.js";
+import type { GitInfo, ScanState, RepoSummary, Gist } from "./types.js";
+
+/** Human "expires in 23h 4m" / "expired" from an absolute ms timestamp. */
+function formatExpiry(expiresAt: number): string {
+  const diff = expiresAt - Date.now();
+  if (diff <= 0) return "expired";
+  const mins = Math.floor(diff / 60000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h >= 24) return `in ${Math.floor(h / 24)}d ${h % 24}h`;
+  if (h >= 1) return `in ${h}h ${m}m`;
+  return `in ${Math.max(1, m)}m`;
+}
+
+const GIST_HEAD = `<link rel="stylesheet" href="/static/vendor/github-markdown-css/github-markdown.css" />
+    <link rel="stylesheet" href="/static/vendor/highlight.js/styles/github.css" media="(prefers-color-scheme: light)" />
+    <link rel="stylesheet" href="/static/vendor/highlight.js/styles/github-dark.css" media="(prefers-color-scheme: dark)" />
+    <link rel="stylesheet" href="/static/vendor/katex/katex.min.css" />
+    <link rel="stylesheet" href="/static/app.css" />`;
+
+const GIST_SCRIPTS = `<script defer src="/static/vendor/katex/katex.min.js"></script>
+    <script defer src="/static/vendor/katex/contrib/auto-render.min.js"></script>
+    <script type="module" src="/static/app.js"></script>`;
+
+interface GistPageOptions {
+  gist: Gist;
+  html: string;
+  isMarkdown: boolean;
+}
+
+export function renderGistPage({ gist, html, isMarkdown }: GistPageOptions): string {
+  const wrapClass = isMarkdown ? "markdown-body markdown-wrap" : "code-wrap";
+  const label = gist.title ? escapeHtml(gist.title) : escapeHtml(gist.filename);
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(gist.title || gist.filename)} · gist</title>
+    ${GIST_HEAD}
+  </head>
+  <body data-repo-base="">
+    <header class="topbar">
+      <div class="topbar-row">
+        <a class="brand" href="/gists">repoview</a>
+        <div class="meta">
+          <span class="pill">gist</span>
+          <span class="pill muted">expires ${escapeHtml(formatExpiry(gist.expiresAt))}</span>
+          <span id="conn-status" class="conn-status" title="Live reload: connecting..."></span>
+        </div>
+      </div>
+    </header>
+    <main class="container">
+      <section class="panel">
+        <div class="panel-title">
+          <span class="filename">${label}${gist.title ? ` <span class="mono muted">${escapeHtml(gist.filename)}</span>` : ""}</span>
+          <span class="spacer"></span>
+          <a class="btn" href="/gists">All gists</a>
+          <a class="btn" href="/gist/${encodeURIComponent(gist.id)}/raw">Raw</a>
+        </div>
+        <div class="${wrapClass}">
+          ${html}
+        </div>
+      </section>
+    </main>
+    ${GIST_SCRIPTS}
+  </body>
+</html>`;
+}
+
+interface GistListPageOptions {
+  gists: Gist[];
+  notice?: string;
+}
+
+export function renderGistListPage({ gists, notice }: GistListPageOptions): string {
+  const rows = gists.length
+    ? gists
+        .map(
+          (g) => `<tr>
+        <td><a class="link" href="/gist/${encodeURIComponent(g.id)}">${escapeHtml(g.title || g.filename)}</a></td>
+        <td class="mono">${escapeHtml(g.filename)}</td>
+        <td class="muted">${escapeHtml(formatExpiry(g.expiresAt))}</td>
+      </tr>`,
+        )
+        .join("")
+    : `<tr><td colspan="3" class="muted">No active gists. Publish one with <span class="mono">repoview gist &lt;file&gt;</span> or <span class="mono">POST /api/gists</span>.</td></tr>`;
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>repoview · gists</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body data-repo-base="">
+    <header class="topbar">
+      <div class="topbar-row">
+        <a class="brand" href="/gists">repoview</a>
+        <div class="meta"><span class="pill">gists</span></div>
+      </div>
+    </header>
+    <main class="container">
+      ${notice ? `<div class="note">${escapeHtml(notice)}</div>` : ""}
+      <div class="card">
+        <h2 class="card-title">Gists</h2>
+        <table class="session-table">
+          <thead><tr><th>Title</th><th>File</th><th>Expires</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <p class="muted">Gists are ephemeral previews — they expire (default 24h) and do not survive a server restart.</p>
+    </main>
+  </body>
+</html>`;
+}
 
 function renderRepoSwitcher(
   repos: RepoSummary[],
@@ -75,7 +191,7 @@ export function renderSessionPage({
     <header class="topbar">
       <div class="topbar-row">
         <a class="brand" href="/session">repoview</a>
-        <div class="meta"><span class="pill">session</span></div>
+        <div class="meta"><span class="pill">session</span><a class="pill link" href="/gists">Gists</a></div>
       </div>
     </header>
     <main class="container">
@@ -275,6 +391,7 @@ function renderMetaMenu({
   <div class="menu-panel" role="menu">
     <a class="menu-item link" href="${diffHref}" role="menuitem">Diff view</a>
     <a class="menu-item link" href="${repoBase}/review/" role="menuitem">Reviews</a>
+    <a class="menu-item link" href="/gists" role="menuitem">Gists</a>
     <a class="menu-item link" href="${brokenHref}" role="menuitem">${escapeHtml(brokenLabel)}</a>
     <a class="menu-item link" data-no-preserve="ignored" href="${ignoredHref}" role="menuitem">${escapeHtml(
       ignoredLabel,
@@ -342,6 +459,7 @@ function pageTemplateWithLinks({
           <span class="meta-actions">
             <a class="pill link" href="${repoBase}/diff${querySuffix || ""}">Diff</a>
             <a class="pill link" href="${repoBase}/review/">Review</a>
+            <a class="pill link" href="/gists">Gists</a>
             ${brokenPill}
             ${ignoredPill}
           </span>

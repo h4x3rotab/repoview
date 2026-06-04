@@ -30,6 +30,12 @@ Session subcommands (target the daemon on --port):
   repoview rm <id|path>           Unregister a repo from the session
   repoview stop                   Shut the session daemon down
 
+Gist subcommands (publish an ephemeral file, default TTL 24h):
+  repoview gist <file> [--title "…"] [--ttl 24h] [--filename name]
+  cat notes.md | repoview gist --filename notes.md   Publish from stdin
+  repoview gist <file> --url https://repoview.example.com   Target a remote server
+  (prints a preview URL; gists expire and do not survive a restart)
+
 Review subcommands:
   repoview review new --title "Title"               Create a new review thread
   repoview review post <id> --role agent --body "…" Post a message to a thread
@@ -194,6 +200,75 @@ async function runSubcommand(
   return 1;
 }
 
+/** Parse "24h" / "30m" / "7d" / "3600" into seconds. */
+function parseDuration(text: string): number | undefined {
+  const m = String(text).trim().match(/^(\d+)\s*([smhd]?)$/i);
+  if (!m) return undefined;
+  const n = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  const mult = unit === "d" ? 86400 : unit === "h" ? 3600 : unit === "m" ? 60 : 1;
+  return n * mult;
+}
+
+async function runGist(restArgs: string[], localBase: string): Promise<number> {
+  const flags: { title?: string; ttl?: string; filename?: string; url?: string } = {};
+  const positional: string[] = [];
+  for (let i = 0; i < restArgs.length; i++) {
+    const v = restArgs[i];
+    if (v === "--title") flags.title = restArgs[++i];
+    else if (v === "--ttl") flags.ttl = restArgs[++i];
+    else if (v === "--filename") flags.filename = restArgs[++i];
+    else if (v === "--url") flags.url = restArgs[++i];
+    else positional.push(v);
+  }
+
+  const file = positional[0];
+  let content: string;
+  if (file) {
+    const fs = await import("node:fs/promises");
+    content = await fs.readFile(file, "utf8");
+  } else {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+    content = Buffer.concat(chunks).toString("utf8");
+  }
+  if (!content.trim()) {
+    process.stderr.write("Error: no content (pass a file or pipe via stdin)\n");
+    return 1;
+  }
+
+  const filename = flags.filename || (file ? path.basename(file) : "gist.md");
+  let ttlSeconds: number | undefined;
+  if (flags.ttl) {
+    ttlSeconds = parseDuration(flags.ttl);
+    if (ttlSeconds == null) {
+      process.stderr.write(`Invalid --ttl: ${flags.ttl} (use e.g. 30m, 24h, 7d)\n`);
+      return 1;
+    }
+  }
+
+  const target = flags.url ? flags.url.replace(/\/+$/, "") : localBase;
+  let result: { url?: string } | null;
+  try {
+    result = (await fetchJson(`${target}/api/gists`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, filename, title: flags.title, ttlSeconds }),
+    })) as { url?: string } | null;
+  } catch (e) {
+    process.stderr.write(`Error: ${(e as Error).message}\n`);
+    return 1;
+  }
+  if (!result) {
+    process.stderr.write(
+      `No repoview session at ${target}. Start one with \`repoview\` first, or pass --url.\n`,
+    );
+    return 1;
+  }
+  process.stdout.write(`${result.url}\n`);
+  return 0;
+}
+
 const parsed = parseArgs(process.argv.slice(2));
 const { repo, port: portArg, host: hostArg, watch, help } = parsed;
 
@@ -221,6 +296,12 @@ const base = `http://${connectHost(host)}:${port}`;
 // Session-management subcommands target the running daemon.
 if (["ls", "rm", "stop"].includes(parsed.rest[0])) {
   const code = await runSubcommand(parsed.rest[0], parsed, base, port, host);
+  process.exit(code);
+}
+
+// Publish an ephemeral gist to the session daemon.
+if (parsed.rest[0] === "gist") {
+  const code = await runGist(parsed.rest.slice(1), base);
   process.exit(code);
 }
 

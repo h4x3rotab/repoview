@@ -8,9 +8,12 @@ import type { Request, Response, NextFunction } from "express";
 import { createSession } from "./session.js";
 import { createReposRouter } from "./repo-router.js";
 import { createApiRouter } from "./api.js";
+import { createGistStore } from "./gists.js";
+import { createGistRouter } from "./gist-router.js";
 import { renderSessionPage } from "./views.js";
 import { isLoopbackAddress, isLoopbackHost } from "./net.js";
 import type { Session } from "./session.js";
+import type { GistStore } from "./types.js";
 
 export interface StartServerOptions {
   repoRoot: string;
@@ -27,8 +30,18 @@ export interface RunningServer {
   port: number;
 }
 
-/** Build the express app for a session (vendor mounts, control API, repo routes). */
-function buildApp(session: Session, server: http.Server, version: string): express.Express {
+interface BuildAppDeps {
+  gistStore: GistStore;
+  baseUrlEnv?: string;
+}
+
+/** Build the express app for a session (vendor mounts, control API, repo + gist routes). */
+function buildApp(
+  session: Session,
+  server: http.Server,
+  version: string,
+  deps: BuildAppDeps,
+): express.Express {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const packageRoot = path.resolve(__dirname, "..");
@@ -70,6 +83,7 @@ function buildApp(session: Session, server: http.Server, version: string): expre
   });
 
   const onShutdown = () => {
+    deps.gistStore.close();
     void session.close().finally(() => {
       server.close(() => process.exit(0));
       // Force-exit if connections linger.
@@ -77,6 +91,10 @@ function buildApp(session: Session, server: http.Server, version: string): expre
     });
   };
   app.use("/api", createApiRouter(session, { version, onShutdown }));
+  app.use(
+    "/",
+    createGistRouter({ store: deps.gistStore, md: session.md, baseUrlEnv: deps.baseUrlEnv }),
+  );
 
   // Root + legacy (non-prefixed) URLs redirect to the default repo for
   // backwards compatibility.
@@ -138,8 +156,11 @@ export async function startServer({
   const session = createSession();
   await session.addRepo({ repoRoot, watch });
 
+  const gistStore = createGistStore();
+  const baseUrlEnv = process.env.REPOVIEW_BASE_URL || undefined;
+
   const server = http.createServer();
-  const app = buildApp(session, server, version);
+  const app = buildApp(session, server, version, { gistStore, baseUrlEnv });
   server.on("request", app);
 
   await new Promise<void>((resolve, reject) => {
