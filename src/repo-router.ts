@@ -18,6 +18,7 @@ import {
 } from "./views.js";
 import { toPosixPath, encodePathForUrl, safeRealpath, statSafe } from "./paths.js";
 import type { HttpError } from "./paths.js";
+import { isLoopbackAddress } from "./net.js";
 import type { RepoContext } from "./types.js";
 import type { Session } from "./session.js";
 import { formatBytes, formatDate } from "./format.js";
@@ -877,6 +878,7 @@ export function createReposRouter(session: Session) {
         renderSessionPage({
           repos: session.listRepos(),
           notice: `Repository "${req.params.repoId}" is not in this session.`,
+          canManage: isLoopbackAddress(req.socket.remoteAddress),
         }),
       );
     }

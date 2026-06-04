@@ -61,8 +61,13 @@ repoview rm <id|path>       # unregister a repo
 repoview stop               # shut the session down
 ```
 
-Use `--port` to run independent sessions side by side. Session control endpoints
-(register / remove / stop) are restricted to localhost.
+Use `--port` to run independent sessions side by side.
+
+> **Note:** by default the session binds `0.0.0.0`, so **every repo you add is
+> browsable by anyone on the network** (you'll see a warning at startup). Session
+> control endpoints (register / remove / stop) are restricted to localhost, and
+> the `/session` page is read-only for remote viewers. Use `--host 127.0.0.1` to
+> keep a session fully local.
 
 ## Why
 

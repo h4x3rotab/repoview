@@ -9,6 +9,7 @@ import { createSession } from "./session.js";
 import { createReposRouter } from "./repo-router.js";
 import { createApiRouter } from "./api.js";
 import { renderSessionPage } from "./views.js";
+import { isLoopbackAddress, isLoopbackHost } from "./net.js";
 import type { Session } from "./session.js";
 
 export interface StartServerOptions {
@@ -84,9 +85,16 @@ function buildApp(session: Session, server: http.Server, version: string): expre
     res.redirect(def ? `/r/${def}/tree/` : "/session");
   });
 
-  // Session management page (list / open / add / remove repos).
+  // Session management page (list / open / add / remove repos). Management
+  // controls only render for loopback clients (mutations are loopback-guarded).
   app.get("/session", (req, res) => {
-    res.send(renderSessionPage({ repos: session.listRepos(), version }));
+    res.send(
+      renderSessionPage({
+        repos: session.listRepos(),
+        version,
+        canManage: isLoopbackAddress(req.socket.remoteAddress),
+      }),
+    );
   });
 
   app.use("/r", createReposRouter(session));
@@ -153,6 +161,13 @@ export async function startServer({
     if (defaultId) {
       // eslint-disable-next-line no-console
       console.log(`open: http://${host}:${port}/r/${defaultId}/tree/`);
+    }
+    if (!isLoopbackHost(host)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `warning: bound to ${host} — every repo added to this session is browsable ` +
+          `by anyone on the network. Use --host 127.0.0.1 to keep it local.`,
+      );
     }
   }
 

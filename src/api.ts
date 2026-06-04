@@ -2,13 +2,11 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 
 import type { Session } from "./session.js";
-
-const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+import { isLoopbackAddress } from "./net.js";
 
 /** Restrict a mutating control endpoint to loopback clients. */
 function requireLoopback(req: Request, res: Response, next: NextFunction) {
-  const addr = req.socket.remoteAddress || "";
-  if (LOOPBACK.has(addr)) return next();
+  if (isLoopbackAddress(req.socket.remoteAddress)) return next();
   res.status(403).json({ error: "Control endpoints are restricted to localhost" });
 }
 

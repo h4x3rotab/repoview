@@ -144,11 +144,14 @@ test("each repo renders its own content", async () => {
   assert.match(html, /data-repo-base="\/r\/beta"/);
 });
 
-test("GET /session lists every repo", async () => {
+test("GET /session lists every repo with management controls (loopback)", async () => {
   const html = await (await fetch(`${base}/session`)).text();
   assert.match(html, /Repositories/);
   assert.match(html, /\/r\/alpha\/tree\//);
   assert.match(html, /\/r\/beta\/tree\//);
+  // Tests run over 127.0.0.1, so the requester may manage.
+  assert.match(html, /repo-remove/);
+  assert.match(html, /id="add-repo-form"/);
 });
 
 test("unknown repo falls back to the session page with a notice (404)", async () => {

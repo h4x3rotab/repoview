@@ -85,7 +85,12 @@ The daemon already serves file contents to the bind host, so letting *anyone on
 the network* register an arbitrary host path is a privilege escalation. Mutating
 endpoints (`POST`/`DELETE`/`shutdown`) are restricted to **loopback**
 (`req.socket.remoteAddress` ∈ `127.0.0.1`, `::1`, `::ffff:127.0.0.1`). Local CLI
-joins are loopback, so this is transparent.
+joins are loopback, so this is transparent. Helpers live in `src/net.ts`.
+
+Because a session binds `0.0.0.0` by default and exposes *every* added repo to
+the network, the server prints a **warning at startup** when bound to a
+non-loopback host, and the `/session` page renders **read-only** for non-loopback
+viewers (`canManage` is false — no add/remove controls, no `session.js`).
 
 ### 5. CLI surface
 
