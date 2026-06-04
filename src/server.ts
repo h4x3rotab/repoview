@@ -5,9 +5,11 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 
-import { createMarkdownRenderer } from "./markdown.js";
-import { createRepoContext } from "./repo-context.js";
-import { createRepoRouter } from "./repo-router.js";
+import { createSession } from "./session.js";
+import { createReposRouter } from "./repo-router.js";
+import { createApiRouter } from "./api.js";
+import { renderErrorPage } from "./views.js";
+import type { Session } from "./session.js";
 
 export interface StartServerOptions {
   repoRoot: string;
@@ -16,19 +18,22 @@ export interface StartServerOptions {
   watch: boolean;
 }
 
-export async function startServer({ repoRoot, host, port, watch }: StartServerOptions) {
+export interface RunningServer {
+  app: express.Express;
+  server: http.Server;
+  session: Session;
+  host: string;
+  port: number;
+}
+
+/** Build the express app for a session (vendor mounts, control API, repo routes). */
+function buildApp(session: Session, server: http.Server, version: string): express.Express {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const packageRoot = path.resolve(__dirname, "..");
   const require = createRequire(import.meta.url);
-
-  const resolvePackageDir = (name: string): string => {
-    const pkgJson = require.resolve(`${name}/package.json`);
-    return path.dirname(pkgJson);
-  };
-
-  const md = createMarkdownRenderer();
-  const ctx = await createRepoContext({ repoRoot, md, watch });
+  const resolvePackageDir = (name: string): string =>
+    path.dirname(require.resolve(`${name}/package.json`));
 
   const app = express();
   app.disable("x-powered-by");
@@ -37,27 +42,19 @@ export async function startServer({ repoRoot, host, port, watch }: StartServerOp
   app.use("/static", express.static(publicDir, { fallthrough: true }));
   app.use(
     "/static/vendor/github-markdown-css",
-    express.static(resolvePackageDir("github-markdown-css"), {
-      fallthrough: false,
-    }),
+    express.static(resolvePackageDir("github-markdown-css"), { fallthrough: false }),
   );
   app.use(
     "/static/vendor/highlight.js",
-    express.static(resolvePackageDir("highlight.js"), {
-      fallthrough: false,
-    }),
+    express.static(resolvePackageDir("highlight.js"), { fallthrough: false }),
   );
   app.use(
     "/static/vendor/katex",
-    express.static(path.join(resolvePackageDir("katex"), "dist"), {
-      fallthrough: false,
-    }),
+    express.static(path.join(resolvePackageDir("katex"), "dist"), { fallthrough: false }),
   );
   app.use(
     "/static/vendor/mermaid",
-    express.static(path.join(resolvePackageDir("mermaid"), "dist"), {
-      fallthrough: false,
-    }),
+    express.static(path.join(resolvePackageDir("mermaid"), "dist"), { fallthrough: false }),
   );
   app.use(
     "/static/vendor/diff2html",
@@ -71,17 +68,97 @@ export async function startServer({ repoRoot, host, port, watch }: StartServerOp
     next();
   });
 
-  app.get("/", (req, res) => res.redirect("/tree/"));
+  const onShutdown = () => {
+    void session.close().finally(() => {
+      server.close(() => process.exit(0));
+      // Force-exit if connections linger.
+      setTimeout(() => process.exit(0), 500).unref();
+    });
+  };
+  app.use("/api", createApiRouter(session, { version, onShutdown }));
 
-  app.use("/", createRepoRouter(ctx));
+  // Root + legacy (non-prefixed) URLs redirect to the default repo for
+  // backwards compatibility.
+  app.get("/", (req, res) => {
+    const def = session.getDefaultId();
+    res.redirect(def ? `/r/${def}/tree/` : "/api/session");
+  });
 
-  const server = http.createServer(app);
-  await new Promise<void>((resolve) => server.listen(port, host, resolve));
+  app.use("/r", createReposRouter(session));
 
+  const legacyRedirect = (req: Request, res: Response) => {
+    const def = session.getDefaultId();
+    if (!def) {
+      return res
+        .status(404)
+        .send(
+          renderErrorPage({
+            title: "No repos",
+            message: "No repositories are registered in this session.",
+            repoBase: "",
+            repos: [],
+            currentRepoId: "",
+          }),
+        );
+    }
+    res.redirect(307, `/r/${def}${req.originalUrl}`);
+  };
+  app.get(
+    [
+      "/tree",
+      "/tree/*",
+      "/blob",
+      "/blob/*",
+      "/raw",
+      "/raw/*",
+      "/diff",
+      "/events",
+      "/rev",
+      "/broken-links",
+      "/broken-links.json",
+      "/review",
+      "/review/*",
+    ],
+    legacyRedirect,
+  );
+
+  return app;
+}
+
+export async function startServer({
+  repoRoot,
+  host,
+  port,
+  watch,
+}: StartServerOptions): Promise<RunningServer> {
+  const require = createRequire(import.meta.url);
+  const version = (require("../package.json") as { version: string }).version;
+
+  const session = createSession();
+  await session.addRepo({ repoRoot, watch });
+
+  const server = http.createServer();
+  const app = buildApp(session, server, version);
+  server.on("request", app);
+
+  await new Promise<void>((resolve, reject) => {
+    const onError = (err: NodeJS.ErrnoException) => reject(err);
+    server.once("error", onError);
+    server.listen(port, host, () => {
+      server.off("error", onError);
+      resolve();
+    });
+  });
+
+  const defaultId = session.getDefaultId();
   // eslint-disable-next-line no-console
-  console.log(`repoview: ${ctx.repoRootReal}`);
+  console.log(`repoview: ${require("node:path").resolve(repoRoot)}`);
   // eslint-disable-next-line no-console
   console.log(`listening: http://${host}:${port}`);
+  if (defaultId) {
+    // eslint-disable-next-line no-console
+    console.log(`open: http://${host}:${port}/r/${defaultId}/tree/`);
+  }
 
-  return { app, server, ctx };
+  return { app, server, session, host, port };
 }

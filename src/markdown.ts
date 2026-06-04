@@ -219,7 +219,7 @@ function encodePathForUrl(posixPath: string): string {
     .join("/");
 }
 
-function rewriteLinkHref(href: string, baseDirPosix: string): string {
+function rewriteLinkHref(href: string, baseDirPosix: string, repoBase = ""): string {
   if (!href) return href;
   if (href.startsWith("#") || isExternalHref(href)) return href;
 
@@ -235,6 +235,8 @@ function rewriteLinkHref(href: string, baseDirPosix: string): string {
   if (/^\/(?:blob|tree|raw|static)(?:\/|$)/.test(rawPath) || rawPath === "/events") {
     return href;
   }
+  // Already prefixed for this repo (e.g. a second rewrite pass during sanitize).
+  if (repoBase && rawPath.startsWith(`${repoBase}/`)) return href;
 
   const raw = rawPath.trim();
   if (!raw) return href;
@@ -246,12 +248,12 @@ function rewriteLinkHref(href: string, baseDirPosix: string): string {
   if (targetPosix == null) return href;
 
   const isTree = raw.endsWith("/") || targetPosix === "";
-  const newPath = `/${isTree ? "tree" : "blob"}/${encodePathForUrl(targetPosix)}`;
+  const newPath = `${repoBase}/${isTree ? "tree" : "blob"}/${encodePathForUrl(targetPosix)}`;
   const withQuery = query ? `${newPath}${query}` : newPath;
   return hash ? `${withQuery}#${hash}` : withQuery;
 }
 
-function rewriteImageSrc(src: string, baseDirPosix: string): string {
+function rewriteImageSrc(src: string, baseDirPosix: string, repoBase = ""): string {
   if (!src) return src;
   if (isExternalHref(src) || src.startsWith("data:")) return src;
 
@@ -265,13 +267,15 @@ function rewriteImageSrc(src: string, baseDirPosix: string): string {
   const query = queryIndex >= 0 ? beforeHash.slice(queryIndex) : "";
 
   if (/^\/(?:raw|static)(?:\/|$)/.test(rawPath)) return src;
+  // Already prefixed for this repo (e.g. a second rewrite pass during sanitize).
+  if (repoBase && rawPath.startsWith(`${repoBase}/`)) return src;
 
   const isRooted = rawPath.startsWith("/");
   const targetPosix = isRooted
     ? normalizeRepoPath(rawPath)
     : normalizeRepoPath(path.posix.join(baseDirPosix || "", rawPath));
   if (targetPosix == null) return src;
-  const newPath = `/raw/${encodePathForUrl(targetPosix)}`;
+  const newPath = `${repoBase}/raw/${encodePathForUrl(targetPosix)}`;
   const withQuery = query ? `${newPath}${query}` : newPath;
   return hash ? `${withQuery}#${hash}` : withQuery;
 }
@@ -314,7 +318,7 @@ export function createMarkdownRenderer(): MarkdownRenderer {
     const hrefIndex = token.attrIndex("href");
     if (hrefIndex >= 0) {
       const href = token.attrs![hrefIndex][1];
-      const rewritten = rewriteLinkHref(href, env.baseDirPosix || "");
+      const rewritten = rewriteLinkHref(href, env.baseDirPosix || "", env.repoBase || "");
       token.attrs![hrefIndex][1] = rewritten;
       if (isExternalHref(href)) {
         token.attrSet("target", "_blank");
@@ -330,7 +334,7 @@ export function createMarkdownRenderer(): MarkdownRenderer {
     const srcIndex = token.attrIndex("src");
     if (srcIndex >= 0) {
       const src = token.attrs![srcIndex][1];
-      token.attrs![srcIndex][1] = rewriteImageSrc(src, env.baseDirPosix || "");
+      token.attrs![srcIndex][1] = rewriteImageSrc(src, env.baseDirPosix || "", env.repoBase || "");
     }
     return defaultImage(tokens, idx, options, env, self);
   };
@@ -440,6 +444,7 @@ export function createMarkdownRenderer(): MarkdownRenderer {
 
   function sanitize(html: string, env?: MarkdownEnv): string {
     const baseDirPosix = env?.baseDirPosix || "";
+    const repoBase = env?.repoBase || "";
     return sanitizeHtml(html, {
       allowedTags: [
         ...sanitizeHtml.defaults.allowedTags,
@@ -481,7 +486,7 @@ export function createMarkdownRenderer(): MarkdownRenderer {
           const next = { ...attribs };
           if (next.href) {
             const originalHref = next.href;
-            next.href = rewriteLinkHref(originalHref, baseDirPosix);
+            next.href = rewriteLinkHref(originalHref, baseDirPosix, repoBase);
             if (isExternalHref(originalHref)) {
               next.target = "_blank";
               next.rel = "noreferrer noopener";
@@ -491,7 +496,7 @@ export function createMarkdownRenderer(): MarkdownRenderer {
         },
         img: (tagName: string, attribs: sanitizeHtml.Attributes) => {
           const next = { ...attribs };
-          if (next.src) next.src = rewriteImageSrc(next.src, baseDirPosix);
+          if (next.src) next.src = rewriteImageSrc(next.src, baseDirPosix, repoBase);
           if (!next.loading) next.loading = "lazy";
           return { tagName, attribs: next };
         },

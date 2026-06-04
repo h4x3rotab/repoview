@@ -5,6 +5,14 @@ export interface GitInfo {
   commit: string | null;
 }
 
+/** Lightweight description of a repo registered in a session. */
+export interface RepoSummary {
+  id: string;
+  name: string;
+  path: string;
+  branch: string | null;
+}
+
 export interface IgnoreOptions {
   isDir?: boolean;
 }
@@ -17,6 +25,8 @@ export interface IgnoreMatcher {
 export interface MarkdownEnv {
   baseDirPosix?: string;
   emitLineMap?: boolean;
+  /** URL prefix for the current repo, e.g. "/r/myrepo". Empty = legacy/root. */
+  repoBase?: string;
   [key: string]: unknown;
 }
 

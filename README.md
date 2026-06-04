@@ -14,6 +14,7 @@ Not affiliated with GitHub.
 - Live reload when files change (SSE with polling fallback)
 - Broken internal link discovery for docs (`/broken-links`)
 - Respects `.gitignore` by default (toggleable)
+- Shared sessions (like tmux): run `repoview` in several repos on the same port and browse them all from one server, switching between them in the UI
 
 ## Quick start (from source)
 
@@ -37,6 +38,30 @@ By default, `repoview` binds to `0.0.0.0` (LAN-accessible). For localhost-only:
 ```bash
 npx repoview --repo /path/to/your/repo --host 127.0.0.1 --port 3000
 ```
+
+## Shared sessions (multi-repo)
+
+The first `repoview` on a port starts a server; later runs on the **same port**
+join it instead of failing — they register their repo and exit immediately
+(no need to remember a port per repo):
+
+```bash
+cd ~/work/api    && repoview            # starts the session on :3000
+cd ~/work/web    && repoview            # joins :3000, registers, exits
+cd ~/work/docs   && repoview            # joins :3000, registers, exits
+```
+
+Each repo is served at `/r/<id>/…`; switch between them from the dropdown in the
+top bar. Manage the session from the CLI:
+
+```bash
+repoview ls                 # list repos in the session
+repoview rm <id|path>       # unregister a repo
+repoview stop               # shut the session down
+```
+
+Use `--port` to run independent sessions side by side. Session control endpoints
+(register / remove / stop) are restricted to localhost.
 
 ## Why
 

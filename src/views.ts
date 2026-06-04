@@ -1,5 +1,26 @@
 import path from "node:path";
-import type { GitInfo, ScanState } from "./types.js";
+import type { GitInfo, ScanState, RepoSummary } from "./types.js";
+
+function renderRepoSwitcher(
+  repos: RepoSummary[],
+  currentRepoId: string,
+  repoName: string,
+): string {
+  if (repos.length <= 1) return "";
+  const current = repos.find((r) => r.id === currentRepoId);
+  const currentName = current ? current.name : repoName;
+  return `<details class="repo-switcher">
+  <summary class="pill link">${escapeHtml(currentName)} ▾</summary>
+  <div class="menu-panel" role="menu">
+    ${repos
+      .map(
+        (r) =>
+          `<a class="menu-item link${r.id === currentRepoId ? " current" : ""}" role="menuitem" href="/r/${encodeURIComponent(r.id)}/tree/">${escapeHtml(r.name)}</a>`,
+      )
+      .join("")}
+  </div>
+</details>`;
+}
 
 function formatReviewTime(isoString: string | null | undefined): string {
   if (!isoString) return "";
@@ -34,14 +55,18 @@ interface Crumb {
   href: string;
 }
 
-function renderBreadcrumbs(relPathPosix: string | null | undefined, querySuffix: string | null | undefined): string {
+function renderBreadcrumbs(
+  relPathPosix: string | null | undefined,
+  querySuffix: string | null | undefined,
+  repoBase: string,
+): string {
   const parts = (relPathPosix || "").split("/").filter(Boolean);
   const suffix = querySuffix || "";
-  const crumbs: Crumb[] = [{ name: "", href: `/tree/${suffix}` }];
+  const crumbs: Crumb[] = [{ name: "", href: `${repoBase}/tree/${suffix}` }];
   let cursor = "";
   for (const p of parts) {
     cursor = cursor ? `${cursor}/${p}` : p;
-    crumbs.push({ name: p, href: `/tree/${encodePathForUrl(cursor)}${suffix}` });
+    crumbs.push({ name: p, href: `${repoBase}/tree/${encodePathForUrl(cursor)}${suffix}` });
   }
 
   const html = crumbs
@@ -59,11 +84,24 @@ interface PageTemplateOptions {
   gitInfo: GitInfo | null;
   relPathPosix: string;
   bodyHtml: string;
+  repoBase: string;
+  repos: RepoSummary[];
+  currentRepoId: string;
 }
 
-function pageTemplate({ title, repoName, gitInfo, relPathPosix, bodyHtml }: PageTemplateOptions): string {
+function pageTemplate({
+  title,
+  repoName,
+  gitInfo,
+  relPathPosix,
+  bodyHtml,
+  repoBase,
+  repos,
+  currentRepoId,
+}: PageTemplateOptions): string {
   const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
+  const repoSwitcher = renderRepoSwitcher(repos, currentRepoId, repoName);
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -76,16 +114,17 @@ function pageTemplate({ title, repoName, gitInfo, relPathPosix, bodyHtml }: Page
     <link rel="stylesheet" href="/static/vendor/katex/katex.min.css" />
     <link rel="stylesheet" href="/static/app.css" />
   </head>
-  <body>
+  <body data-repo-base="${escapeHtml(repoBase)}">
     <header class="topbar">
       <div class="topbar-row">
-        <a class="brand" href="/tree/">${escapeHtml(repoName)}</a>
+        <a class="brand" href="${repoBase}/tree/">${escapeHtml(repoName)}</a>
+        ${repoSwitcher}
         <div class="meta">
           <span class="pill">${branch}</span>
           ${commit ? `<span class="pill mono">${commit}</span>` : ""}
         </div>
       </div>
-      ${renderBreadcrumbs(relPathPosix, "")}
+      ${renderBreadcrumbs(relPathPosix, "", repoBase)}
     </header>
     <main class="container">
       ${bodyHtml}
@@ -100,12 +139,13 @@ function pageTemplate({ title, repoName, gitInfo, relPathPosix, bodyHtml }: Page
 function renderBrokenLinksPill(
   brokenLinks: ScanState | null | undefined,
   querySuffix: string | null | undefined,
+  repoBase: string,
 ): string {
   const state = brokenLinks;
   if (!state) return "";
   const status = state.status;
   const count = state.lastResult?.broken?.length ?? 0;
-  const href = `/broken-links${querySuffix || ""}`;
+  const href = `${repoBase}/broken-links${querySuffix || ""}`;
   if (status === "running") return `<a class="pill link" href="${href}">Scanning links…</a>`;
   if (state.lastResult) {
     return `<a class="pill link" href="${href}">Broken: ${count}</a>`;
@@ -131,6 +171,7 @@ interface MetaMenuOptions {
   querySuffix: string | null | undefined;
   toggleIgnoredHref: string | null | undefined;
   showIgnored: boolean;
+  repoBase: string;
 }
 
 function renderMetaMenu({
@@ -139,6 +180,7 @@ function renderMetaMenu({
   querySuffix,
   toggleIgnoredHref,
   showIgnored,
+  repoBase,
 }: MetaMenuOptions): string {
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
   const brokenState = brokenLinks;
@@ -149,17 +191,17 @@ function renderMetaMenu({
       : brokenCount == null
         ? "Broken links"
         : `Broken links: ${brokenCount}`;
-  const brokenHref = `/broken-links${querySuffix || ""}`;
+  const brokenHref = `${repoBase}/broken-links${querySuffix || ""}`;
   const ignoredHref = toggleIgnoredHref || "#";
   const ignoredLabel = showIgnored ? "Hide ignored files" : "Show ignored files";
 
-  const diffHref = `/diff${querySuffix || ""}`;
+  const diffHref = `${repoBase}/diff${querySuffix || ""}`;
 
   return `<details class="meta-menu">
   <summary class="pill link" aria-label="More">More</summary>
   <div class="menu-panel" role="menu">
     <a class="menu-item link" href="${diffHref}" role="menuitem">Diff view</a>
-    <a class="menu-item link" href="/review/" role="menuitem">Reviews</a>
+    <a class="menu-item link" href="${repoBase}/review/" role="menuitem">Reviews</a>
     <a class="menu-item link" href="${brokenHref}" role="menuitem">${escapeHtml(brokenLabel)}</a>
     <a class="menu-item link" data-no-preserve="ignored" href="${ignoredHref}" role="menuitem">${escapeHtml(
       ignoredLabel,
@@ -179,6 +221,9 @@ interface PageTemplateWithLinksOptions {
   querySuffix: string | null | undefined;
   toggleIgnoredHref: string | null | undefined;
   showIgnored: boolean;
+  repoBase: string;
+  repos: RepoSummary[];
+  currentRepoId: string;
 }
 
 function pageTemplateWithLinks({
@@ -191,12 +236,16 @@ function pageTemplateWithLinks({
   querySuffix,
   toggleIgnoredHref,
   showIgnored,
+  repoBase,
+  repos,
+  currentRepoId,
 }: PageTemplateWithLinksOptions): string {
   const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
-  const brokenPill = renderBrokenLinksPill(brokenLinks, querySuffix);
+  const brokenPill = renderBrokenLinksPill(brokenLinks, querySuffix, repoBase);
   const ignoredPill = renderIgnoredTogglePill({ toggleIgnoredHref, showIgnored });
-  const metaMenu = renderMetaMenu({ gitInfo, brokenLinks, querySuffix, toggleIgnoredHref, showIgnored });
+  const metaMenu = renderMetaMenu({ gitInfo, brokenLinks, querySuffix, toggleIgnoredHref, showIgnored, repoBase });
+  const repoSwitcher = renderRepoSwitcher(repos, currentRepoId, repoName);
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -209,16 +258,17 @@ function pageTemplateWithLinks({
     <link rel="stylesheet" href="/static/vendor/katex/katex.min.css" />
     <link rel="stylesheet" href="/static/app.css" />
   </head>
-  <body>
+  <body data-repo-base="${escapeHtml(repoBase)}">
     <header class="topbar">
       <div class="topbar-row">
-        <a class="brand" href="/tree/${querySuffix || ""}">${escapeHtml(repoName)}</a>
+        <a class="brand" href="${repoBase}/tree/${querySuffix || ""}">${escapeHtml(repoName)}</a>
+        ${repoSwitcher}
         <div class="meta">
           <span class="pill">${branch}</span>
           ${commit ? `<span class="pill mono meta-commit">${commit}</span>` : ""}
           <span class="meta-actions">
-            <a class="pill link" href="/diff${querySuffix || ""}">Diff</a>
-            <a class="pill link" href="/review/">Review</a>
+            <a class="pill link" href="${repoBase}/diff${querySuffix || ""}">Diff</a>
+            <a class="pill link" href="${repoBase}/review/">Review</a>
             ${brokenPill}
             ${ignoredPill}
           </span>
@@ -226,7 +276,7 @@ function pageTemplateWithLinks({
           ${metaMenu}
         </div>
       </div>
-      ${renderBreadcrumbs(relPathPosix, querySuffix)}
+      ${renderBreadcrumbs(relPathPosix, querySuffix, repoBase)}
     </header>
     <main class="container">
       ${bodyHtml}
@@ -258,6 +308,9 @@ interface TreePageOptions {
   relPathPosix: string | null | undefined;
   rows: TreeRow[];
   readmeHtml: string | null | undefined;
+  repoBase: string;
+  repos: RepoSummary[];
+  currentRepoId: string;
 }
 
 export function renderTreePage({
@@ -271,6 +324,9 @@ export function renderTreePage({
   relPathPosix,
   rows,
   readmeHtml,
+  repoBase,
+  repos,
+  currentRepoId,
 }: TreePageOptions): string {
   const tableRows = rows
     .map((r) => {
@@ -317,6 +373,9 @@ ${readmeSection}`;
     querySuffix,
     relPathPosix,
     bodyHtml: body,
+    repoBase,
+    repos,
+    currentRepoId,
   });
 }
 
@@ -333,6 +392,9 @@ interface FilePageOptions {
   isMarkdown: boolean;
   mediaType?: string | null;
   renderedHtml: string;
+  repoBase: string;
+  repos: RepoSummary[];
+  currentRepoId: string;
 }
 
 export function renderFilePage({
@@ -348,11 +410,14 @@ export function renderFilePage({
   isMarkdown,
   mediaType,
   renderedHtml,
+  repoBase,
+  repos,
+  currentRepoId,
 }: FilePageOptions): string {
   const relDir = path.posix.dirname(relPathPosix || "");
   const suffix = querySuffix || "";
-  const rawHref = `/raw/${encodePathForUrl(relPathPosix || "")}${suffix}`;
-  const treeHref = `/tree/${encodePathForUrl(relDir === "." ? "" : relDir)}${suffix}`;
+  const rawHref = `${repoBase}/raw/${encodePathForUrl(relPathPosix || "")}${suffix}`;
+  const treeHref = `${repoBase}/tree/${encodePathForUrl(relDir === "." ? "" : relDir)}${suffix}`;
 
   const wrapClass = mediaType ? `${mediaType}-wrap` : isMarkdown ? "markdown-body markdown-wrap" : "code-wrap";
   const body = `<section class="panel">
@@ -377,6 +442,9 @@ export function renderFilePage({
     querySuffix,
     relPathPosix,
     bodyHtml: body,
+    repoBase,
+    repos,
+    currentRepoId,
   });
 }
 
@@ -394,6 +462,9 @@ interface DiffPageOptions {
   empty: boolean;
   fileCount: number;
   showAll: boolean;
+  repoBase: string;
+  repos: RepoSummary[];
+  currentRepoId: string;
 }
 
 export function renderDiffPage({
@@ -410,6 +481,9 @@ export function renderDiffPage({
   empty,
   fileCount,
   showAll,
+  repoBase,
+  repos,
+  currentRepoId,
 }: DiffPageOptions): string {
   const branchOptions = branches
     .map((b) => {
@@ -446,7 +520,7 @@ export function renderDiffPage({
     const hidden = fileCount - MAX_DIFF_FILES;
     const showAllQuery = new URLSearchParams(querySuffix ? querySuffix.slice(1) : "");
     showAllQuery.set("show_all", "1");
-    const showAllHref = `/diff?${showAllQuery.toString()}`;
+    const showAllHref = `${repoBase}/diff?${showAllQuery.toString()}`;
     truncatedMsg = `<div class="diff-truncated note">${hidden} more file${hidden === 1 ? "" : "s"} not shown. <a class="link" href="${showAllHref}">Show all ${fileCount} files</a></div>`;
   }
 
@@ -455,7 +529,7 @@ export function renderDiffPage({
     <span>Compare working tree against</span>
     ${selector}
     <span class="spacer"></span>
-    <a class="btn" href="/tree/${querySuffix || ""}">Back</a>
+    <a class="btn" href="${repoBase}/tree/${querySuffix || ""}">Back</a>
   </div>
   <div class="diff-wrap">
     ${content}
@@ -465,6 +539,7 @@ export function renderDiffPage({
 
   const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
+  const repoSwitcher = renderRepoSwitcher(repos, currentRepoId, repoName);
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -474,10 +549,11 @@ export function renderDiffPage({
     <link rel="stylesheet" href="/static/vendor/diff2html/diff2html.min.css" />
     <link rel="stylesheet" href="/static/app.css" />
   </head>
-  <body>
+  <body data-repo-base="${escapeHtml(repoBase)}">
     <header class="topbar">
       <div class="topbar-row">
-        <a class="brand" href="/tree/${querySuffix || ""}">${escapeHtml(repoName)}</a>
+        <a class="brand" href="${repoBase}/tree/${querySuffix || ""}">${escapeHtml(repoName)}</a>
+        ${repoSwitcher}
         <div class="meta">
           <span class="pill">${branch}</span>
           ${commit ? `<span class="pill mono">${commit}</span>` : ""}
@@ -508,6 +584,9 @@ interface ReviewListPageOptions {
   repoName: string;
   gitInfo: GitInfo | null;
   threads: ReviewThreadSummary[];
+  repoBase: string;
+  repos: RepoSummary[];
+  currentRepoId: string;
 }
 
 export function renderReviewListPage({
@@ -515,6 +594,9 @@ export function renderReviewListPage({
   repoName,
   gitInfo,
   threads,
+  repoBase,
+  repos,
+  currentRepoId,
 }: ReviewListPageOptions): string {
   const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
@@ -527,7 +609,7 @@ export function renderReviewListPage({
             : t.messageCount > 0;
           const badge = unread ? `<span class="review-unread-badge">${t.unreadCount || "new"}</span>` : "";
           const timeAgo = escapeHtml(formatReviewTime(t.lastActivityAt || t.createdAt));
-          return `<a class="review-thread-row" href="/review/${encodeURIComponent(t.id)}">
+          return `<a class="review-thread-row" href="${repoBase}/review/${encodeURIComponent(t.id)}">
   <div class="review-thread-info">
     <span class="review-thread-title">${escapeHtml(t.title)}${badge}</span>
     <span class="review-thread-meta">${t.messageCount} message${t.messageCount !== 1 ? "s" : ""} · ${timeAgo}</span>
@@ -553,10 +635,11 @@ export function renderReviewListPage({
     <title>${escapeHtml(title)}</title>
     <link rel="stylesheet" href="/static/app.css" />
   </head>
-  <body>
+  <body data-repo-base="${escapeHtml(repoBase)}">
     <header class="topbar">
       <div class="topbar-row">
-        <a class="brand" href="/tree/">${escapeHtml(repoName)}</a>
+        <a class="brand" href="${repoBase}/tree/">${escapeHtml(repoName)}</a>
+        ${renderRepoSwitcher(repos, currentRepoId, repoName)}
         <div class="meta">
           <span class="pill">${branch}</span>
           ${commit ? `<span class="pill mono">${commit}</span>` : ""}
@@ -614,6 +697,9 @@ interface ReviewThreadPageOptions {
   messages: ReviewMessage[];
   comments: ReviewComment[];
   renderedMessages: string[];
+  repoBase: string;
+  repos: RepoSummary[];
+  currentRepoId: string;
 }
 
 export function renderReviewThreadPage({
@@ -624,6 +710,9 @@ export function renderReviewThreadPage({
   messages,
   comments,
   renderedMessages,
+  repoBase,
+  repos,
+  currentRepoId,
 }: ReviewThreadPageOptions): string {
   const branch = gitInfo?.branch ? escapeHtml(gitInfo.branch) : "no-git";
   const commit = gitInfo?.commit ? escapeHtml(gitInfo.commit.slice(0, 7)) : "";
@@ -658,7 +747,7 @@ export function renderReviewThreadPage({
 
   const body = `<section class="panel review-thread-panel">
   <div class="panel-title review-thread-header">
-    <a class="btn" href="/review/">← Back</a>
+    <a class="btn" href="${repoBase}/review/">← Back</a>
     <span class="review-thread-title-text">${escapeHtml(thread.title)}</span>
     <span class="spacer"></span>
   </div>
@@ -683,10 +772,11 @@ export function renderReviewThreadPage({
     <link rel="stylesheet" href="/static/vendor/katex/katex.min.css" />
     <link rel="stylesheet" href="/static/app.css" />
   </head>
-  <body>
+  <body data-repo-base="${escapeHtml(repoBase)}">
     <header class="topbar">
       <div class="topbar-row">
-        <a class="brand" href="/tree/">${escapeHtml(repoName)}</a>
+        <a class="brand" href="${repoBase}/tree/">${escapeHtml(repoName)}</a>
+        ${renderRepoSwitcher(repos, currentRepoId, repoName)}
         <div class="meta">
           <span class="pill">${branch}</span>
           ${commit ? `<span class="pill mono">${commit}</span>` : ""}
@@ -708,9 +798,12 @@ export function renderReviewThreadPage({
 interface ErrorPageOptions {
   title: string;
   message: string;
+  repoBase: string;
+  repos: RepoSummary[];
+  currentRepoId: string;
 }
 
-export function renderErrorPage({ title, message }: ErrorPageOptions): string {
+export function renderErrorPage({ title, message, repoBase }: ErrorPageOptions): string {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -719,7 +812,7 @@ export function renderErrorPage({ title, message }: ErrorPageOptions): string {
     <title>${escapeHtml(title)}</title>
     <link rel="stylesheet" href="/static/app.css" />
   </head>
-  <body>
+  <body data-repo-base="${escapeHtml(repoBase)}">
     <main class="container">
       <section class="panel">
         <div class="panel-title">Error</div>
@@ -739,6 +832,9 @@ interface BrokenLinksPageOptions {
   querySuffix: string | null | undefined;
   toggleIgnoredHref: string | null | undefined;
   showIgnored: boolean;
+  repoBase: string;
+  repos: RepoSummary[];
+  currentRepoId: string;
 }
 
 export function renderBrokenLinksPage({
@@ -750,6 +846,9 @@ export function renderBrokenLinksPage({
   querySuffix,
   toggleIgnoredHref,
   showIgnored,
+  repoBase,
+  repos,
+  currentRepoId,
 }: BrokenLinksPageOptions): string {
   const state: Partial<ScanState> = scanState || {};
   const result = state.lastResult;
@@ -775,7 +874,7 @@ export function renderBrokenLinksPage({
   const sections = Array.from(grouped.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([source, items]) => {
-      const sourceHref = `/blob/${source.split("/").map(encodeURIComponent).join("/")}${
+      const sourceHref = `${repoBase}/blob/${source.split("/").map(encodeURIComponent).join("/")}${
         querySuffix || ""
       }`;
       const rows = items
@@ -819,5 +918,8 @@ ${sections || `<section class="panel"><div class="panel-title">All good</div><di
     querySuffix,
     relPathPosix,
     bodyHtml: body,
+    repoBase,
+    repos,
+    currentRepoId,
   });
 }

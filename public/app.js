@@ -1,6 +1,8 @@
 (() => {
   const shouldWatch = new URLSearchParams(location.search).get("watch") !== "0";
   const statusEl = document.getElementById("conn-status");
+  // Per-repo URL prefix (e.g. "/r/myrepo"); empty for legacy/root mounts.
+  const repoBase = document.body.dataset.repoBase || "";
 
   function setStatus(state) {
     if (!statusEl) return;
@@ -23,7 +25,7 @@
   let lastRevision = null;
 
   async function fetchRevision() {
-    const res = await fetch(`/rev?ts=${Date.now()}`, { cache: "no-store" });
+    const res = await fetch(`${repoBase}/rev?ts=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) throw new Error("rev fetch failed");
     const json = await res.json();
     return Number(json.revision);
@@ -49,7 +51,7 @@
   }
 
   try {
-    const es = new EventSource("/events");
+    const es = new EventSource(`${repoBase}/events`);
     es.addEventListener("open", () => {
       setStatus("connected");
     });

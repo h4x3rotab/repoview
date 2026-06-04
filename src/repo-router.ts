@@ -18,6 +18,7 @@ import {
 import { toPosixPath, encodePathForUrl, safeRealpath, statSafe } from "./paths.js";
 import type { HttpError } from "./paths.js";
 import type { RepoContext } from "./types.js";
+import type { Session } from "./session.js";
 import { formatBytes, formatDate } from "./format.js";
 import { parseCsv, renderCsvTable } from "./csv.js";
 import {
@@ -39,12 +40,15 @@ function validateThreadId(id: unknown): boolean {
 }
 
 /**
- * Build an express.Router serving a single repo (the given context). Mounted at
- * "/" for single-repo today; at "/r/:repoId" once multi-repo sessions land.
+ * Build an express.Router serving a single repo (the given context). All
+ * generated app URLs are prefixed with `repoBase` (e.g. "/r/myrepo").
  */
-export function createRepoRouter(ctx: RepoContext) {
+function buildRepoRouter(ctx: RepoContext, repoBase: string, session: Session) {
   const { md } = ctx;
   const router = express.Router();
+
+  const errorPage = (title: string, message: string) =>
+    renderErrorPage({ title, message, repoBase, repos: session.listRepos(), currentRepoId: ctx.id });
 
   router.get("/rev", (req: Request, res: Response) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -68,7 +72,7 @@ export function createRepoRouter(ctx: RepoContext) {
       else q.set("ignored", "1");
       return q.toString() ? `?${q.toString()}` : "";
     })();
-    const toggleIgnoredHref = `/broken-links${toggleIgnoredSuffix}`;
+    const toggleIgnoredHref = `${repoBase}/broken-links${toggleIgnoredSuffix}`;
     const state = ctx.linkScanner.getState();
     res.status(200).send(
       renderBrokenLinksPage({
@@ -80,6 +84,9 @@ export function createRepoRouter(ctx: RepoContext) {
         querySuffix,
         toggleIgnoredHref,
         showIgnored,
+        repoBase,
+        repos: session.listRepos(),
+        currentRepoId: ctx.id,
       }),
     );
   });
@@ -162,13 +169,16 @@ export function createRepoRouter(ctx: RepoContext) {
           empty: !diffResult.raw,
           fileCount,
           showAll,
+          repoBase,
+          repos: session.listRepos(),
+          currentRepoId: ctx.id,
         }),
       );
     } catch (e) {
       const err = e as HttpError;
       res
         .status(err.statusCode || 500)
-        .send(renderErrorPage({ title: "Error", message: err.message }));
+        .send(errorPage("Error", (e as { message?: string }).message ?? "Error"));
     }
   });
 
@@ -188,7 +198,7 @@ export function createRepoRouter(ctx: RepoContext) {
 
       const p = req.params[0] ?? "";
       const { stripped, resolved } = await safeRealpath(ctx.repoRootReal, p);
-      const toggleIgnoredHref = `/tree/${encodePathForUrl(
+      const toggleIgnoredHref = `${repoBase}/tree/${encodePathForUrl(
         toPosixPath(stripped),
       )}${toggleIgnoredSuffix}`;
       const st = await statSafe(resolved);
@@ -199,7 +209,7 @@ export function createRepoRouter(ctx: RepoContext) {
       }
       if (st.isFile)
         return res.redirect(
-          `/blob/${encodePathForUrl(toPosixPath(stripped))}${querySuffix}`,
+          `${repoBase}/blob/${encodePathForUrl(toPosixPath(stripped))}${querySuffix}`,
         );
 
       let entries;
@@ -234,8 +244,8 @@ export function createRepoRouter(ctx: RepoContext) {
               if (info === null) return null;
               const isDir = e.isDirectory();
               const href = isDir
-                ? `/tree/${encodePathForUrl(relPosix)}${querySuffix}`
-                : `/blob/${encodePathForUrl(relPosix)}${querySuffix}`;
+                ? `${repoBase}/tree/${encodePathForUrl(relPosix)}${querySuffix}`
+                : `${repoBase}/blob/${encodePathForUrl(relPosix)}${querySuffix}`;
               return {
                 name: e.name,
                 isDir,
@@ -265,6 +275,7 @@ export function createRepoRouter(ctx: RepoContext) {
             const buf = await fs.readFile(readmePath);
             readmeHtml = md.render(buf.toString("utf8"), {
               baseDirPosix: toPosixPath(stripped),
+              repoBase,
             });
           }
         } catch {
@@ -284,13 +295,16 @@ export function createRepoRouter(ctx: RepoContext) {
           showIgnored,
           rows,
           readmeHtml,
+          repoBase,
+          repos: session.listRepos(),
+          currentRepoId: ctx.id,
         }),
       );
     } catch (e) {
       const err = e as HttpError;
       res
         .status(err.statusCode || 500)
-        .send(renderErrorPage({ title: "Error", message: err.message }));
+        .send(errorPage("Error", (e as { message?: string }).message ?? "Error"));
     }
   });
 
@@ -310,7 +324,7 @@ export function createRepoRouter(ctx: RepoContext) {
 
       const p = req.params[0] ?? "";
       const { stripped, resolved } = await safeRealpath(ctx.repoRootReal, p);
-      const toggleIgnoredHref = `/blob/${encodePathForUrl(
+      const toggleIgnoredHref = `${repoBase}/blob/${encodePathForUrl(
         toPosixPath(stripped),
       )}${toggleIgnoredSuffix}`;
       const st = await statSafe(resolved);
@@ -321,7 +335,7 @@ export function createRepoRouter(ctx: RepoContext) {
       }
       if (st.isDir)
         return res.redirect(
-          `/tree/${encodePathForUrl(toPosixPath(stripped))}${querySuffix}`,
+          `${repoBase}/tree/${encodePathForUrl(toPosixPath(stripped))}${querySuffix}`,
         );
 
       const fileName = path.basename(resolved);
@@ -331,7 +345,7 @@ export function createRepoRouter(ctx: RepoContext) {
       const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp"].includes(ext);
       const isCsv = [".csv", ".tsv"].includes(ext);
       const maxBytes = 2 * 1024 * 1024;
-      const rawSrc = `/raw/${encodePathForUrl(toPosixPath(stripped))}`;
+      const rawSrc = `${repoBase}/raw/${encodePathForUrl(toPosixPath(stripped))}`;
 
       if (isPdf) {
         res.status(200).send(
@@ -348,6 +362,9 @@ export function createRepoRouter(ctx: RepoContext) {
             isMarkdown: false,
             mediaType: "pdf",
             renderedHtml: `<iframe class="pdf-frame" src="${rawSrc}"></iframe>`,
+            repoBase,
+            repos: session.listRepos(),
+            currentRepoId: ctx.id,
           }),
         );
         return;
@@ -368,6 +385,9 @@ export function createRepoRouter(ctx: RepoContext) {
             isMarkdown: false,
             mediaType: "image",
             renderedHtml: `<img class="image-preview" src="${rawSrc}" alt="${escapeHtml(fileName)}" />`,
+            repoBase,
+            repos: session.listRepos(),
+            currentRepoId: ctx.id,
           }),
         );
         return;
@@ -388,9 +408,12 @@ export function createRepoRouter(ctx: RepoContext) {
             isMarkdown: false,
             renderedHtml: `<div class="note">File is too large to render (${formatBytes(
               st.size,
-            )}). Use <a href="/raw/${encodePathForUrl(
+            )}). Use <a href="${repoBase}/raw/${encodePathForUrl(
               toPosixPath(stripped),
             )}${querySuffix}">Raw</a>.</div>`,
+            repoBase,
+            repos: session.listRepos(),
+            currentRepoId: ctx.id,
           }),
         );
         return;
@@ -408,7 +431,7 @@ export function createRepoRouter(ctx: RepoContext) {
         mediaType = "csv";
       } else if (isMarkdown) {
         const baseDir = toPosixPath(path.posix.dirname(toPosixPath(stripped)));
-        renderedHtml = md.render(text, { baseDirPosix: baseDir === "." ? "" : baseDir });
+        renderedHtml = md.render(text, { baseDirPosix: baseDir === "." ? "" : baseDir, repoBase });
       } else {
         renderedHtml = md.renderCodeBlock(text, {
           languageHint: ext ? ext.slice(1) : "",
@@ -429,13 +452,16 @@ export function createRepoRouter(ctx: RepoContext) {
           isMarkdown,
           mediaType,
           renderedHtml,
+          repoBase,
+          repos: session.listRepos(),
+          currentRepoId: ctx.id,
         }),
       );
     } catch (e) {
       const err = e as HttpError;
       res
         .status(err.statusCode || 500)
-        .send(renderErrorPage({ title: "Error", message: err.message }));
+        .send(errorPage("Error", (e as { message?: string }).message ?? "Error"));
     }
   });
 
@@ -485,10 +511,13 @@ export function createRepoRouter(ctx: RepoContext) {
           repoName: ctx.repoName,
           gitInfo: ctx.gitInfo,
           threads,
+          repoBase,
+          repos: session.listRepos(),
+          currentRepoId: ctx.id,
         }),
       );
     } catch (e) {
-      res.status(500).send(renderErrorPage({ title: "Error", message: (e as HttpError).message }));
+      res.status(500).send(errorPage("Error", (e as { message?: string }).message ?? "Error"));
     }
   });
 
@@ -496,7 +525,7 @@ export function createRepoRouter(ctx: RepoContext) {
     try {
       const { threadId } = req.params;
       if (!validateThreadId(threadId)) {
-        return res.status(400).send(renderErrorPage({ title: "Error", message: "Invalid thread ID" }));
+        return res.status(400).send(errorPage("Error", "Invalid thread ID"));
       }
 
       const threadDir = path.join(reviewDir, threadId);
@@ -506,7 +535,7 @@ export function createRepoRouter(ctx: RepoContext) {
       try {
         thread = JSON.parse(await fs.readFile(threadFile, "utf8"));
       } catch {
-        return res.status(404).send(renderErrorPage({ title: "Error", message: "Thread not found" }));
+        return res.status(404).send(errorPage("Error", "Thread not found"));
       }
 
       const messagesDir = path.join(threadDir, "messages");
@@ -533,7 +562,7 @@ export function createRepoRouter(ctx: RepoContext) {
       // Render agent messages as markdown, user messages as plain text
       const renderedMessages = messages.map((msg) => {
         if (msg.role === "agent" && msg.format === "markdown") {
-          return md.render(msg.body, { baseDirPosix: "", emitLineMap: true });
+          return md.render(msg.body, { baseDirPosix: "", emitLineMap: true, repoBase });
         }
         return msg.body;
       });
@@ -554,10 +583,13 @@ export function createRepoRouter(ctx: RepoContext) {
           messages,
           comments,
           renderedMessages,
+          repoBase,
+          repos: session.listRepos(),
+          currentRepoId: ctx.id,
         }),
       );
     } catch (e) {
-      res.status(500).send(renderErrorPage({ title: "Error", message: (e as HttpError).message }));
+      res.status(500).send(errorPage("Error", (e as { message?: string }).message ?? "Error"));
     }
   });
 
@@ -821,9 +853,39 @@ export function createRepoRouter(ctx: RepoContext) {
       const err = e as HttpError;
       res
         .status(err.statusCode || 500)
-        .send(renderErrorPage({ title: "Error", message: err.message }));
+        .send(errorPage("Error", (e as { message?: string }).message ?? "Error"));
     }
   });
 
   return router;
+}
+
+/**
+ * Build a parent router serving every repo in the session under
+ * `/r/:repoId/...`. Each repo's child router is built lazily and cached.
+ */
+export function createReposRouter(session: Session) {
+  const cache = new WeakMap<RepoContext, express.Router>();
+  const parent = express.Router();
+  parent.use("/:repoId", (req, res, next) => {
+    const ctx = session.getRepo(req.params.repoId);
+    if (!ctx) {
+      return res.status(404).send(
+        renderErrorPage({
+          title: "Not found",
+          message: `Unknown repo: ${req.params.repoId}`,
+          repoBase: "",
+          repos: session.listRepos(),
+          currentRepoId: "",
+        }),
+      );
+    }
+    let child = cache.get(ctx);
+    if (!child) {
+      child = buildRepoRouter(ctx, `/r/${ctx.id}`, session);
+      cache.set(ctx, child);
+    }
+    return child(req, res, next);
+  });
+  return parent;
 }

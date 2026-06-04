@@ -1,6 +1,8 @@
 # Shared multi-repo session ("tmux for repoview")
 
-Status: **planned** (prep refactor lands first — see [Prep refactor](#prep-refactor)).
+Status: **implemented** in 0.6.0 (`src/session.ts`, `src/api.ts`, `/r/:repoId`
+routing). The prep refactor and TypeScript migration landed first — see
+[Prep refactor](#prep-refactor).
 
 ## Goal
 
