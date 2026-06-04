@@ -100,7 +100,11 @@ repoview review …        unchanged (pure filesystem)
 ### 6. Frontend
 
 - Topbar **repo switcher** dropdown listing all repos (current marked), each
-  linking to `/r/<id>/tree/`.
+  linking to `/r/<id>/tree/`, plus a **Manage repos…** entry.
+- A **session page** at `/session` lists every repo (open / remove) and has an
+  add-repo form — both call the loopback-guarded control API, so repos can be
+  managed entirely from the browser. Unknown/removed repo URLs fall back to this
+  page (404) instead of a bare error.
 - `views.js`: thread a `repoBase = /r/<id>` prefix through breadcrumbs, brand link,
   diff/review/broken-links/toggle hrefs; expose it to the client via
   `<body data-repo-base>`.

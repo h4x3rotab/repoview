@@ -8,7 +8,7 @@ import type { Request, Response, NextFunction } from "express";
 import { createSession } from "./session.js";
 import { createReposRouter } from "./repo-router.js";
 import { createApiRouter } from "./api.js";
-import { renderErrorPage } from "./views.js";
+import { renderSessionPage } from "./views.js";
 import type { Session } from "./session.js";
 
 export interface StartServerOptions {
@@ -81,26 +81,19 @@ function buildApp(session: Session, server: http.Server, version: string): expre
   // backwards compatibility.
   app.get("/", (req, res) => {
     const def = session.getDefaultId();
-    res.redirect(def ? `/r/${def}/tree/` : "/api/session");
+    res.redirect(def ? `/r/${def}/tree/` : "/session");
+  });
+
+  // Session management page (list / open / add / remove repos).
+  app.get("/session", (req, res) => {
+    res.send(renderSessionPage({ repos: session.listRepos(), version }));
   });
 
   app.use("/r", createReposRouter(session));
 
   const legacyRedirect = (req: Request, res: Response) => {
     const def = session.getDefaultId();
-    if (!def) {
-      return res
-        .status(404)
-        .send(
-          renderErrorPage({
-            title: "No repos",
-            message: "No repositories are registered in this session.",
-            repoBase: "",
-            repos: [],
-            currentRepoId: "",
-          }),
-        );
-    }
+    if (!def) return res.redirect("/session");
     res.redirect(307, `/r/${def}${req.originalUrl}`);
   };
   app.get(

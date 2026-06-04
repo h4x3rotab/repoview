@@ -6,7 +6,7 @@ function renderRepoSwitcher(
   currentRepoId: string,
   repoName: string,
 ): string {
-  if (repos.length <= 1) return "";
+  if (repos.length < 1) return "";
   const current = repos.find((r) => r.id === currentRepoId);
   const currentName = current ? current.name : repoName;
   return `<details class="repo-switcher">
@@ -18,8 +18,68 @@ function renderRepoSwitcher(
           `<a class="menu-item link${r.id === currentRepoId ? " current" : ""}" role="menuitem" href="/r/${encodeURIComponent(r.id)}/tree/">${escapeHtml(r.name)}</a>`,
       )
       .join("")}
+    <a class="menu-item link manage" role="menuitem" href="/session">⚙ Manage repos…</a>
   </div>
 </details>`;
+}
+
+interface SessionPageOptions {
+  repos: RepoSummary[];
+  version?: string;
+  notice?: string;
+}
+
+export function renderSessionPage({ repos, version, notice }: SessionPageOptions): string {
+  const rows = repos.length
+    ? repos
+        .map(
+          (r) => `<tr>
+        <td><a class="link" href="/r/${encodeURIComponent(r.id)}/tree/">${escapeHtml(r.name)}</a></td>
+        <td><span class="pill mono">${escapeHtml(r.branch || "no-git")}</span></td>
+        <td class="session-path mono">${escapeHtml(r.path)}</td>
+        <td><button class="btn btn-sm repo-remove" data-id="${escapeHtml(r.id)}">Remove</button></td>
+      </tr>`,
+        )
+        .join("")
+    : `<tr><td colspan="4" class="muted">No repositories registered. Add one below.</td></tr>`;
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>repoview · session</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body data-repo-base="">
+    <header class="topbar">
+      <div class="topbar-row">
+        <a class="brand" href="/session">repoview</a>
+        <div class="meta"><span class="pill">session</span></div>
+      </div>
+    </header>
+    <main class="container">
+      ${notice ? `<div class="note">${escapeHtml(notice)}</div>` : ""}
+      <div class="card">
+        <h2 class="card-title">Repositories</h2>
+        <table class="session-table">
+          <thead><tr><th>Name</th><th>Branch</th><th>Path</th><th></th></tr></thead>
+          <tbody id="repo-rows">${rows}</tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2 class="card-title">Add a repository</h2>
+        <form id="add-repo-form" class="session-add">
+          <input id="add-repo-path" type="text" placeholder="/absolute/path/to/repo" autocomplete="off" />
+          <button class="btn" type="submit">Add</button>
+        </form>
+        <p class="muted" id="add-repo-error"></p>
+      </div>
+      ${version ? `<p class="muted">repoview v${escapeHtml(version)}</p>` : ""}
+    </main>
+    <script type="module" src="/static/session.js"></script>
+  </body>
+</html>`;
 }
 
 function formatReviewTime(isoString: string | null | undefined): string {

@@ -13,6 +13,7 @@ import {
   renderFilePage,
   renderReviewListPage,
   renderReviewThreadPage,
+  renderSessionPage,
   renderTreePage,
 } from "./views.js";
 import { toPosixPath, encodePathForUrl, safeRealpath, statSafe } from "./paths.js";
@@ -870,13 +871,12 @@ export function createReposRouter(session: Session) {
   parent.use("/:repoId", (req, res, next) => {
     const ctx = session.getRepo(req.params.repoId);
     if (!ctx) {
+      // Friendly fallback: show the session page (lists available repos) so a
+      // stale bookmark or a removed repo doesn't dead-end on a bare error.
       return res.status(404).send(
-        renderErrorPage({
-          title: "Not found",
-          message: `Unknown repo: ${req.params.repoId}`,
-          repoBase: "",
+        renderSessionPage({
           repos: session.listRepos(),
-          currentRepoId: "",
+          notice: `Repository "${req.params.repoId}" is not in this session.`,
         }),
       );
     }

@@ -52,7 +52,8 @@ cd ~/work/docs   && repoview            # joins :3000, registers, exits
 ```
 
 Each repo is served at `/r/<id>/…`; switch between them from the dropdown in the
-top bar. Manage the session from the CLI:
+top bar, or open **Manage repos…** (the `/session` page) to add/remove repos
+from the browser. Manage the session from the CLI too:
 
 ```bash
 repoview ls                 # list repos in the session
