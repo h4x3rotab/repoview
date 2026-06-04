@@ -14,29 +14,60 @@ Not affiliated with GitHub.
 - Live reload when files change (SSE with polling fallback)
 - Broken internal link discovery for docs (`/broken-links`)
 - Respects `.gitignore` by default (toggleable)
+- Shared sessions (like tmux): run `repoview` in several repos on the same port and browse them all from one server, switching between them in the UI
 
 ## Quick start (from source)
 
 ```bash
 npm install
-npm start -- --repo /path/to/your/repo --port 3000
+npm start -- --repo /path/to/your/repo --port 7376
 ```
 
-Then open `http://localhost:3000`.
+Then open `http://localhost:7376`.
 
 ## Quick start (npx)
 
 From anywhere:
 
 ```bash
-npx repoview --repo /path/to/your/repo --port 3000
+npx repoview --repo /path/to/your/repo --port 7376
 ```
 
 By default, `repoview` binds to `0.0.0.0` (LAN-accessible). For localhost-only:
 
 ```bash
-npx repoview --repo /path/to/your/repo --host 127.0.0.1 --port 3000
+npx repoview --repo /path/to/your/repo --host 127.0.0.1 --port 7376
 ```
+
+## Shared sessions (multi-repo)
+
+The first `repoview` on a port starts a server; later runs on the **same port**
+join it instead of failing — they register their repo and exit immediately
+(no need to remember a port per repo):
+
+```bash
+cd ~/work/api    && repoview            # starts the session on :7376
+cd ~/work/web    && repoview            # joins :7376, registers, exits
+cd ~/work/docs   && repoview            # joins :7376, registers, exits
+```
+
+Each repo is served at `/r/<id>/…`; switch between them from the dropdown in the
+top bar, or open **Manage repos…** (the `/session` page) to add/remove repos
+from the browser. Manage the session from the CLI too:
+
+```bash
+repoview ls                 # list repos in the session
+repoview rm <id|path>       # unregister a repo
+repoview stop               # shut the session down
+```
+
+Use `--port` to run independent sessions side by side.
+
+> **Note:** by default the session binds `0.0.0.0`, so **every repo you add is
+> browsable by anyone on the network** (you'll see a warning at startup). Session
+> control endpoints (register / remove / stop) are restricted to localhost, and
+> the `/session` page is read-only for remote viewers. Use `--host 127.0.0.1` to
+> keep a session fully local.
 
 ## Why
 
@@ -47,7 +78,7 @@ npx repoview --repo /path/to/your/repo --host 127.0.0.1 --port 3000
 ## Usage
 
 ```bash
-npm start -- [--repo /path/to/repo] [--host 0.0.0.0] [--port 3000] [--no-watch]
+npm start -- [--repo /path/to/repo] [--host 0.0.0.0] [--port 7376] [--no-watch]
 ```
 
 Common flags:

@@ -1,7 +1,23 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-function generateThreadId(title) {
+interface Thread {
+  id: string;
+  title: string;
+  createdAt: string;
+  lastActivityAt: string;
+  readUntil: string | null;
+  [key: string]: unknown;
+}
+
+interface ReviewFlags {
+  title?: string;
+  role?: string;
+  body?: string;
+  file?: string;
+}
+
+function generateThreadId(title: string): string {
   const date = new Date().toISOString().slice(0, 10);
   const slug = title
     .toLowerCase()
@@ -11,7 +27,7 @@ function generateThreadId(title) {
   return `${date}-${slug}`;
 }
 
-function getNextMessageId(existingIds) {
+function getNextMessageId(existingIds: string[]): string {
   let max = 0;
   for (const id of existingIds) {
     const n = parseInt(id, 10);
@@ -20,7 +36,7 @@ function getNextMessageId(existingIds) {
   return String(max + 1).padStart(3, "0");
 }
 
-export async function reviewNew({ title, reviewDir }) {
+export async function reviewNew({ title, reviewDir }: { title?: string; reviewDir: string }) {
   if (!title) {
     process.stderr.write("Error: --title is required\n");
     process.exit(1);
@@ -33,7 +49,7 @@ export async function reviewNew({ title, reviewDir }) {
   await fs.mkdir(messagesDir, { recursive: true });
 
   const now = new Date().toISOString();
-  const thread = {
+  const thread: Thread = {
     id,
     title,
     createdAt: now,
@@ -47,7 +63,19 @@ export async function reviewNew({ title, reviewDir }) {
   process.stdout.write(id + "\n");
 }
 
-export async function reviewPost({ threadId, role, body, file, reviewDir }) {
+export async function reviewPost({
+  threadId,
+  role,
+  body,
+  file,
+  reviewDir,
+}: {
+  threadId?: string;
+  role?: string;
+  body?: string;
+  file?: string;
+  reviewDir: string;
+}) {
   if (!threadId) {
     process.stderr.write("Error: thread-id is required\n");
     process.exit(1);
@@ -82,7 +110,7 @@ export async function reviewPost({ threadId, role, body, file, reviewDir }) {
   }
 
   // Find next message ID
-  let entries = [];
+  let entries: string[] = [];
   try {
     entries = await fs.readdir(messagesDir);
   } catch {
@@ -106,14 +134,14 @@ export async function reviewPost({ threadId, role, body, file, reviewDir }) {
   await fs.writeFile(path.join(messagesDir, `${nextId}.json`), JSON.stringify(message, null, 2) + "\n");
 
   // Update lastActivityAt in thread.json
-  const thread = JSON.parse(await fs.readFile(threadFile, "utf8"));
+  const thread: Thread = JSON.parse(await fs.readFile(threadFile, "utf8"));
   thread.lastActivityAt = now;
   await fs.writeFile(threadFile, JSON.stringify(thread, null, 2) + "\n");
 
   process.stdout.write(nextId + "\n");
 }
 
-export async function reviewRead({ threadId, reviewDir }) {
+export async function reviewRead({ threadId, reviewDir }: { threadId?: string; reviewDir: string }) {
   if (!threadId) {
     process.stderr.write("Error: thread-id is required\n");
     process.exit(1);
@@ -132,20 +160,20 @@ export async function reviewRead({ threadId, reviewDir }) {
   const thread = JSON.parse(await fs.readFile(threadFile, "utf8"));
 
   const messagesDir = path.join(threadDir, "messages");
-  let messageFiles = [];
+  let messageFiles: string[] = [];
   try {
     messageFiles = (await fs.readdir(messagesDir)).filter((f) => f.endsWith(".json")).sort();
   } catch {
     // no messages yet
   }
 
-  const messages = [];
+  const messages: unknown[] = [];
   for (const f of messageFiles) {
     const msg = JSON.parse(await fs.readFile(path.join(messagesDir, f), "utf8"));
     messages.push(msg);
   }
 
-  let comments = { comments: [] };
+  let comments: { comments: unknown[] } = { comments: [] };
   try {
     comments = JSON.parse(await fs.readFile(path.join(threadDir, "comments.json"), "utf8"));
   } catch {
@@ -156,8 +184,8 @@ export async function reviewRead({ threadId, reviewDir }) {
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
 }
 
-export async function reviewList({ reviewDir }) {
-  let entries = [];
+export async function reviewList({ reviewDir }: { reviewDir: string }) {
+  let entries: import("node:fs").Dirent[] = [];
   try {
     entries = await fs.readdir(reviewDir, { withFileTypes: true });
   } catch {
@@ -165,12 +193,12 @@ export async function reviewList({ reviewDir }) {
     return;
   }
 
-  const threads = [];
+  const threads: Array<Thread & { messageCount: number }> = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const threadFile = path.join(reviewDir, entry.name, "thread.json");
     try {
-      const thread = JSON.parse(await fs.readFile(threadFile, "utf8"));
+      const thread: Thread = JSON.parse(await fs.readFile(threadFile, "utf8"));
       // Count messages
       let messageCount = 0;
       try {
@@ -186,18 +214,18 @@ export async function reviewList({ reviewDir }) {
   }
 
   // Sort by lastActivityAt, newest first
-  threads.sort((a, b) => new Date(b.lastActivityAt) - new Date(a.lastActivityAt));
+  threads.sort((a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime());
 
   process.stdout.write(JSON.stringify(threads, null, 2) + "\n");
 }
 
-export async function handleReviewCommand(argv, repoRoot) {
+export async function handleReviewCommand(argv: string[], repoRoot: string) {
   const subcommand = argv[0];
   const args = argv.slice(1);
 
   // Parse --review-dir flag
   let reviewDir = path.join(repoRoot, ".repoview", "reviews");
-  const rest = [];
+  const rest: string[] = [];
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--review-dir") {
       reviewDir = args[++i];
@@ -207,8 +235,8 @@ export async function handleReviewCommand(argv, repoRoot) {
   }
 
   // Parse subcommand-specific flags
-  const flags = {};
-  const positional = [];
+  const flags: ReviewFlags = {};
+  const positional: string[] = [];
   for (let i = 0; i < rest.length; i++) {
     const v = rest[i];
     if (v === "--title") flags.title = rest[++i];

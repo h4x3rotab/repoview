@@ -2,12 +2,30 @@ import path from "node:path";
 import hljs from "highlight.js";
 import GithubSlugger from "github-slugger";
 import MarkdownIt from "markdown-it";
+import type { RenderRule } from "markdown-it/lib/renderer.mjs";
+import type Token from "markdown-it/lib/token.mjs";
+import type StateCore from "markdown-it/lib/rules_core/state_core.mjs";
 import { full as emoji } from "markdown-it-emoji";
 import footnote from "markdown-it-footnote";
 import taskLists from "markdown-it-task-lists";
 import sanitizeHtml from "sanitize-html";
+import type { MarkdownEnv, MarkdownRenderer } from "./types.js";
 
-function escapeHtml(s) {
+interface SluggerEnv extends MarkdownEnv {
+  __slugger?: GithubSlugger;
+}
+
+interface FrontmatterData {
+  [key: string]: string | string[];
+}
+
+interface FrontmatterResult {
+  data: FrontmatterData | null;
+  body: string;
+  order?: string[];
+}
+
+function escapeHtml(s: unknown): string {
   return String(s)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -16,7 +34,7 @@ function escapeHtml(s) {
     .replaceAll("'", "&#39;");
 }
 
-function stripQuotes(s) {
+function stripQuotes(s: string): string {
   if (s.length >= 2) {
     const first = s[0];
     const last = s[s.length - 1];
@@ -27,7 +45,7 @@ function stripQuotes(s) {
   return s;
 }
 
-function parseFlowList(raw) {
+function parseFlowList(raw: string): string[] {
   return raw
     .slice(1, -1)
     .split(",")
@@ -39,14 +57,14 @@ function parseFlowList(raw) {
 // markdown frontmatter: `key: value`, quoted strings, `key: [a, b, c]`,
 // and indented `- item` block lists. Returns null when the leading `---`
 // block doesn't look like YAML, so plain horizontal rules pass through.
-function extractFrontmatter(text) {
+function extractFrontmatter(text: string): FrontmatterResult {
   const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (!match) return { data: null, body: text };
 
   const block = match[1];
   const lines = block.split(/\r?\n/);
-  const data = {};
-  const order = [];
+  const data: FrontmatterData = {};
+  const order: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -60,7 +78,7 @@ function extractFrontmatter(text) {
     const key = m[1];
     const raw = m[2].trim();
     if (raw === "") {
-      const items = [];
+      const items: string[] = [];
       let j = i + 1;
       while (j < lines.length) {
         const sub = lines[j].match(/^\s+-\s+(.*)$/);
@@ -106,19 +124,19 @@ const FRONTMATTER_KNOWN_KEYS = new Set([
   "categories",
 ]);
 
-function renderFrontmatter(data, order) {
+function renderFrontmatter(data: FrontmatterData, order?: string[]): string {
   const title = data.title;
   const description = data.description ?? data.summary ?? data.subtitle;
   const date = data.date ?? data.published ?? data.updated;
   const authorVal = data.author ?? data.authors;
   const tagsVal = data.tags ?? data.categories;
 
-  const parts = ['<div class="md-frontmatter">'];
+  const parts: string[] = ['<div class="md-frontmatter">'];
   if (title) parts.push(`<h1 class="md-frontmatter-title">${escapeHtml(title)}</h1>`);
   if (description)
     parts.push(`<p class="md-frontmatter-description">${escapeHtml(description)}</p>`);
 
-  const meta = [];
+  const meta: string[] = [];
   if (date) meta.push(`<span class="md-frontmatter-date">${escapeHtml(date)}</span>`);
   if (authorVal) {
     const authors = Array.isArray(authorVal) ? authorVal : [authorVal];
@@ -157,9 +175,9 @@ function renderFrontmatter(data, order) {
 
 // CommonMark only allows "1." to interrupt a paragraph, but GitHub allows any number.
 // This preprocessor adds blank lines before ordered lists starting with numbers other than 1.
-function normalizeOrderedLists(text) {
+function normalizeOrderedLists(text: string): string {
   const lines = text.split("\n");
-  const result = [];
+  const result: string[] = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const prevLine = i > 0 ? lines[i - 1] : "";
@@ -175,15 +193,15 @@ function normalizeOrderedLists(text) {
   return result.join("\n");
 }
 
-function isExternalHref(href) {
+function isExternalHref(href: string): boolean {
   return /^(?:[a-z]+:)?\/\//i.test(href) || href.startsWith("mailto:") || href.startsWith("tel:");
 }
 
-function toPosixPath(p) {
+function toPosixPath(p: string): string {
   return p.split(path.sep).join("/");
 }
 
-function normalizeRepoPath(posixPath) {
+function normalizeRepoPath(posixPath: string): string {
   const stripped = String(posixPath || "").replace(/^\/+/, "");
   let normalized = path.posix.normalize(stripped);
   if (normalized === "." || normalized === "./") return "";
@@ -194,14 +212,14 @@ function normalizeRepoPath(posixPath) {
   return normalized;
 }
 
-function encodePathForUrl(posixPath) {
+function encodePathForUrl(posixPath: string): string {
   return posixPath
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
 }
 
-function rewriteLinkHref(href, baseDirPosix) {
+function rewriteLinkHref(href: string, baseDirPosix: string, repoBase = ""): string {
   if (!href) return href;
   if (href.startsWith("#") || isExternalHref(href)) return href;
 
@@ -217,6 +235,8 @@ function rewriteLinkHref(href, baseDirPosix) {
   if (/^\/(?:blob|tree|raw|static)(?:\/|$)/.test(rawPath) || rawPath === "/events") {
     return href;
   }
+  // Already prefixed for this repo (e.g. a second rewrite pass during sanitize).
+  if (repoBase && rawPath.startsWith(`${repoBase}/`)) return href;
 
   const raw = rawPath.trim();
   if (!raw) return href;
@@ -228,12 +248,12 @@ function rewriteLinkHref(href, baseDirPosix) {
   if (targetPosix == null) return href;
 
   const isTree = raw.endsWith("/") || targetPosix === "";
-  const newPath = `/${isTree ? "tree" : "blob"}/${encodePathForUrl(targetPosix)}`;
+  const newPath = `${repoBase}/${isTree ? "tree" : "blob"}/${encodePathForUrl(targetPosix)}`;
   const withQuery = query ? `${newPath}${query}` : newPath;
   return hash ? `${withQuery}#${hash}` : withQuery;
 }
 
-function rewriteImageSrc(src, baseDirPosix) {
+function rewriteImageSrc(src: string, baseDirPosix: string, repoBase = ""): string {
   if (!src) return src;
   if (isExternalHref(src) || src.startsWith("data:")) return src;
 
@@ -247,23 +267,25 @@ function rewriteImageSrc(src, baseDirPosix) {
   const query = queryIndex >= 0 ? beforeHash.slice(queryIndex) : "";
 
   if (/^\/(?:raw|static)(?:\/|$)/.test(rawPath)) return src;
+  // Already prefixed for this repo (e.g. a second rewrite pass during sanitize).
+  if (repoBase && rawPath.startsWith(`${repoBase}/`)) return src;
 
   const isRooted = rawPath.startsWith("/");
   const targetPosix = isRooted
     ? normalizeRepoPath(rawPath)
     : normalizeRepoPath(path.posix.join(baseDirPosix || "", rawPath));
   if (targetPosix == null) return src;
-  const newPath = `/raw/${encodePathForUrl(targetPosix)}`;
+  const newPath = `${repoBase}/raw/${encodePathForUrl(targetPosix)}`;
   const withQuery = query ? `${newPath}${query}` : newPath;
   return hash ? `${withQuery}#${hash}` : withQuery;
 }
 
-export function createMarkdownRenderer() {
+export function createMarkdownRenderer(): MarkdownRenderer {
   const md = new MarkdownIt({
     html: true,
     linkify: true,
     typographer: false,
-    highlight(code, lang) {
+    highlight(code: string, lang: string): string {
       if (lang && hljs.getLanguage(lang)) {
         return hljs.highlight(code, { language: lang }).value;
       }
@@ -276,7 +298,7 @@ export function createMarkdownRenderer() {
     .enable(["table", "strikethrough"]);
 
   const defaultFence = md.renderer.rules.fence;
-  md.renderer.rules.fence = function (tokens, idx, options, env, self) {
+  md.renderer.rules.fence = function (tokens, idx, options, env, self): string {
     const token = tokens[idx];
     const info = (token.info || "").trim();
     const lang = info.split(/\s+/g)[0]?.toLowerCase() || "";
@@ -287,18 +309,17 @@ export function createMarkdownRenderer() {
     return self.renderToken(tokens, idx, options);
   };
 
-  const defaultLinkOpen =
-    md.renderer.rules.link_open ||
-    function (tokens, idx, options, env, self) {
-      return self.renderToken(tokens, idx, options);
-    };
-  md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
+  const fallbackRule: RenderRule = (tokens, idx, options, _env, self) =>
+    self.renderToken(tokens, idx, options);
+
+  const defaultLinkOpen: RenderRule = md.renderer.rules.link_open || fallbackRule;
+  md.renderer.rules.link_open = function (tokens, idx, options, env: MarkdownEnv, self): string {
     const token = tokens[idx];
     const hrefIndex = token.attrIndex("href");
     if (hrefIndex >= 0) {
-      const href = token.attrs[hrefIndex][1];
-      const rewritten = rewriteLinkHref(href, env.baseDirPosix || "");
-      token.attrs[hrefIndex][1] = rewritten;
+      const href = token.attrs![hrefIndex][1];
+      const rewritten = rewriteLinkHref(href, env.baseDirPosix || "", env.repoBase || "");
+      token.attrs![hrefIndex][1] = rewritten;
       if (isExternalHref(href)) {
         token.attrSet("target", "_blank");
         token.attrSet("rel", "noreferrer noopener");
@@ -307,27 +328,19 @@ export function createMarkdownRenderer() {
     return defaultLinkOpen(tokens, idx, options, env, self);
   };
 
-  const defaultImage =
-    md.renderer.rules.image ||
-    function (tokens, idx, options, env, self) {
-      return self.renderToken(tokens, idx, options);
-    };
-  md.renderer.rules.image = function (tokens, idx, options, env, self) {
+  const defaultImage: RenderRule = md.renderer.rules.image || fallbackRule;
+  md.renderer.rules.image = function (tokens, idx, options, env: MarkdownEnv, self): string {
     const token = tokens[idx];
     const srcIndex = token.attrIndex("src");
     if (srcIndex >= 0) {
-      const src = token.attrs[srcIndex][1];
-      token.attrs[srcIndex][1] = rewriteImageSrc(src, env.baseDirPosix || "");
+      const src = token.attrs![srcIndex][1];
+      token.attrs![srcIndex][1] = rewriteImageSrc(src, env.baseDirPosix || "", env.repoBase || "");
     }
     return defaultImage(tokens, idx, options, env, self);
   };
 
-  const defaultHeadingOpen =
-    md.renderer.rules.heading_open ||
-    function (tokens, idx, options, env, self) {
-      return self.renderToken(tokens, idx, options);
-    };
-  md.renderer.rules.heading_open = function (tokens, idx, options, env, self) {
+  const defaultHeadingOpen: RenderRule = md.renderer.rules.heading_open || fallbackRule;
+  md.renderer.rules.heading_open = function (tokens, idx, options, env: SluggerEnv, self): string {
     const token = tokens[idx];
     if (token.attrIndex("id") < 0 && token.tag && token.tag.startsWith("h")) {
       const titleToken = tokens[idx + 1];
@@ -337,13 +350,13 @@ export function createMarkdownRenderer() {
       if (slug) token.attrSet("id", slug);
     }
     const idIndex = token.attrIndex("id");
-    const id = idIndex >= 0 ? token.attrs[idIndex][1] : "";
+    const id = idIndex >= 0 ? token.attrs![idIndex][1] : "";
     const rendered = defaultHeadingOpen(tokens, idx, options, env, self);
     if (!id) return rendered;
     return `${rendered}<a class="anchor" aria-hidden="true" href="#${escapeHtml(id)}"></a>`;
   };
 
-  const alertTypes = new Map([
+  const alertTypes = new Map<string, { classSuffix: string; title: string }>([
     ["NOTE", { classSuffix: "note", title: "Note" }],
     ["TIP", { classSuffix: "tip", title: "Tip" }],
     ["IMPORTANT", { classSuffix: "important", title: "Important" }],
@@ -351,7 +364,7 @@ export function createMarkdownRenderer() {
     ["CAUTION", { classSuffix: "caution", title: "Caution" }],
   ]);
 
-  md.core.ruler.after("inline", "github-alerts", (state) => {
+  md.core.ruler.after("inline", "github-alerts", (state: StateCore) => {
     const tokens = state.tokens;
     for (let i = 0; i < tokens.length; i++) {
       if (tokens[i].type !== "blockquote_open") continue;
@@ -374,7 +387,7 @@ export function createMarkdownRenderer() {
       const children = inline.children || [];
 
       const firstTextIndex = children.findIndex(
-        (t) => t.type === "text" && /^\s*\[!\w+\]/.test(t.content),
+        (t: Token) => t.type === "text" && /^\s*\[!\w+\]/.test(t.content),
       );
       if (firstTextIndex === -1) continue;
 
@@ -418,7 +431,7 @@ export function createMarkdownRenderer() {
   });
 
   // Source line mapping for inline comment anchoring (opt-in via env.emitLineMap)
-  md.core.ruler.push("source-line-map", (state) => {
+  md.core.ruler.push("source-line-map", (state: StateCore) => {
     if (!state.env.emitLineMap) return;
     for (const token of state.tokens) {
       if (token.nesting !== 1) continue; // only opening tokens
@@ -429,8 +442,9 @@ export function createMarkdownRenderer() {
     }
   });
 
-  function sanitize(html, env) {
+  function sanitize(html: string, env?: MarkdownEnv): string {
     const baseDirPosix = env?.baseDirPosix || "";
+    const repoBase = env?.repoBase || "";
     return sanitizeHtml(html, {
       allowedTags: [
         ...sanitizeHtml.defaults.allowedTags,
@@ -468,11 +482,11 @@ export function createMarkdownRenderer() {
       allowedSchemes: ["http", "https", "mailto", "tel", "data"],
       allowProtocolRelative: true,
       transformTags: {
-        a: (tagName, attribs) => {
+        a: (tagName: string, attribs: sanitizeHtml.Attributes) => {
           const next = { ...attribs };
           if (next.href) {
             const originalHref = next.href;
-            next.href = rewriteLinkHref(originalHref, baseDirPosix);
+            next.href = rewriteLinkHref(originalHref, baseDirPosix, repoBase);
             if (isExternalHref(originalHref)) {
               next.target = "_blank";
               next.rel = "noreferrer noopener";
@@ -480,13 +494,13 @@ export function createMarkdownRenderer() {
           }
           return { tagName, attribs: next };
         },
-        img: (tagName, attribs) => {
+        img: (tagName: string, attribs: sanitizeHtml.Attributes) => {
           const next = { ...attribs };
-          if (next.src) next.src = rewriteImageSrc(next.src, baseDirPosix);
+          if (next.src) next.src = rewriteImageSrc(next.src, baseDirPosix, repoBase);
           if (!next.loading) next.loading = "lazy";
           return { tagName, attribs: next };
         },
-        input: (tagName, attribs) => {
+        input: (tagName: string, attribs: sanitizeHtml.Attributes) => {
           const next = { ...attribs };
           if (next.type === "checkbox") next.disabled = "disabled";
           return { tagName, attribs: next };
@@ -496,15 +510,15 @@ export function createMarkdownRenderer() {
   }
 
   return {
-    render(markdown, env) {
-      const e = env ?? {};
+    render(markdown: string, env?: MarkdownEnv): string {
+      const e: MarkdownEnv = env ?? {};
       const source = markdown ?? "";
       const fm = extractFrontmatter(source);
       const fmHtml = fm.data ? renderFrontmatter(fm.data, fm.order) : "";
       const html = md.render(fm.body, e);
       return sanitize(fmHtml + html, e);
     },
-    renderCodeBlock(text, { languageHint } = {}) {
+    renderCodeBlock(text: string, { languageHint }: { languageHint?: string } = {}): string {
       const lang = languageHint && hljs.getLanguage(languageHint) ? languageHint : "";
       const highlighted = lang
         ? hljs.highlight(text, { language: lang }).value

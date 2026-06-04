@@ -11,13 +11,14 @@ npm install
 ## Run
 
 ```bash
-npm start -- --repo /path/to/repo --port 3000
+npm start -- --repo /path/to/repo --port 7376
 ```
 
-## Lint
+## Lint & test
 
 ```bash
-npm run lint
+npm run lint   # tsc --noEmit (strict type-check)
+npm test       # build + node:test HTTP integration suite
 ```
 
 ## What to work on

@@ -1,4 +1,7 @@
 (() => {
+  // Per-repo URL prefix (e.g. "/r/myrepo"); empty for legacy/root mounts.
+  const repoBase = document.body.dataset.repoBase || "";
+
   // --- Reply form ---
   const replyBtn = document.getElementById("review-reply-submit");
   const replyText = document.getElementById("review-reply-text");
@@ -13,7 +16,7 @@
       replyBtn.textContent = "Sending...";
 
       try {
-        const res = await fetch(`/review/${encodeURIComponent(threadId)}/messages`, {
+        const res = await fetch(`${repoBase}/review/${encodeURIComponent(threadId)}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ body }),
@@ -73,7 +76,7 @@
       const threadId = document.querySelector("[data-thread-id]")?.dataset.threadId;
       if (!threadId) return;
       try {
-        const res = await fetch(`/review/${encodeURIComponent(threadId)}/comments`, {
+        const res = await fetch(`${repoBase}/review/${encodeURIComponent(threadId)}/comments`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -155,7 +158,7 @@
       const threadId = document.querySelector("[data-thread-id]")?.dataset.threadId;
       if (!threadId) return;
       try {
-        const res = await fetch(`/review/${encodeURIComponent(threadId)}/comments`, {
+        const res = await fetch(`${repoBase}/review/${encodeURIComponent(threadId)}/comments`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -254,7 +257,7 @@
       if (resolveBtn) {
         const commentId = resolveBtn.dataset.commentId;
         try {
-          const res = await fetch(`/review/${encodeURIComponent(threadId)}/comments/${encodeURIComponent(commentId)}`, {
+          const res = await fetch(`${repoBase}/review/${encodeURIComponent(threadId)}/comments/${encodeURIComponent(commentId)}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ resolved: true }),
@@ -269,7 +272,7 @@
         const commentId = deleteBtn.dataset.commentId;
         if (!confirm("Delete this comment?")) return;
         try {
-          const res = await fetch(`/review/${encodeURIComponent(threadId)}/comments/${encodeURIComponent(commentId)}`, {
+          const res = await fetch(`${repoBase}/review/${encodeURIComponent(threadId)}/comments/${encodeURIComponent(commentId)}`, {
             method: "DELETE",
           });
           if (res.ok) location.reload();
@@ -450,7 +453,7 @@
 
     let data;
     try {
-      const res = await fetch(`/api/code-context?${params}`);
+      const res = await fetch(`${repoBase}/api/code-context?${params}`);
       if (!res.ok) {
         const err = await res.json();
         showPopupError(overlay, err.error || "Failed to load file");
