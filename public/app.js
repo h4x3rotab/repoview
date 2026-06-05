@@ -16,9 +16,30 @@
     statusEl.title = titles[state] || "";
   }
 
-  if (!shouldWatch) {
+  // No live reload off-repo (gist / session pages are static) or when disabled.
+  if (!shouldWatch || !repoBase) {
     if (statusEl) statusEl.style.display = "none";
     return;
+  }
+
+  // Reload only for changes relevant to THIS page: the exact file (blob), the
+  // viewed directory's direct contents (tree), or anything (diff/broken-links).
+  function deriveScope() {
+    let p = location.pathname;
+    if (p.startsWith(repoBase)) p = p.slice(repoBase.length);
+    const decode = (s) => s.split("/").map(decodeURIComponent).join("/");
+    if (p.startsWith("/blob/")) return { scope: "file", path: decode(p.slice(6)) };
+    if (p === "/tree" || p.startsWith("/tree/")) {
+      return { scope: "dir", path: decode(p.slice(6)).replace(/\/$/, "") };
+    }
+    return { scope: "all", path: "" };
+  }
+
+  function eventsUrl() {
+    const { scope, path } = deriveScope();
+    const params = new URLSearchParams({ scope });
+    if (path) params.set("path", path);
+    return `${repoBase}/events?${params}`;
   }
 
   let pollingTimer = null;
@@ -51,7 +72,7 @@
   }
 
   try {
-    const es = new EventSource(`${repoBase}/events`);
+    const es = new EventSource(eventsUrl());
     es.addEventListener("open", () => {
       setStatus("connected");
     });

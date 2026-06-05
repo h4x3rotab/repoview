@@ -6,6 +6,7 @@ import { loadGitIgnoreMatcher } from "./gitignore.js";
 import { createRepoLinkScanner } from "./linkcheck.js";
 import { getGitInfo } from "./git.js";
 import { createReloadHub } from "./reload.js";
+import { toPosixPath } from "./paths.js";
 import type { LinkScanner, MarkdownRenderer, RepoContext } from "./types.js";
 
 export interface CreateRepoContextOptions {
@@ -70,11 +71,17 @@ export async function createRepoContext({
       // Silently ignore watch errors (e.g., permission denied)
     });
     let pending: ReturnType<typeof setTimeout> | null = null;
-    watcher.on("all", () => {
+    const changed = new Set<string>();
+    watcher.on("all", (_event, changedPath?: string) => {
+      if (typeof changedPath === "string") {
+        changed.add(toPosixPath(path.relative(repoRootReal, changedPath)));
+      }
       if (pending) return;
       pending = setTimeout(() => {
         pending = null;
-        reloadHub.broadcastReload();
+        const paths = [...changed];
+        changed.clear();
+        reloadHub.notify(paths);
         void loadGitIgnoreMatcher(repoRootReal).then((m) => (ctx.ignoreMatcher = m));
         void ctx.linkScanner.triggerScan();
       }, 100);

@@ -20,6 +20,12 @@ All notable changes to this project are documented here. This project adheres to
 - A **Gists** link in the top bar (and on the session page) → the `/gists` list.
 
 ### Changed
+- **Scoped live reload.** A page now reloads only for changes relevant to it: a
+  file view reloads on its exact file, a directory view on its direct children,
+  and repo-wide views (diff, broken-links) on any change. Previously any edit
+  reloaded every open page of that repo. Gist/session pages no longer live-reload
+  (their content is static), which also removes spurious reloads of open gist
+  tabs when the default repo changed.
 - **Rewrote `--help`** to be comprehensive and agent-friendly: documents the
   daemon lifecycle (first run is the foreground server; later runs exit), all
   subcommands and their daemon/`--repo` requirements, the HTTP control + gist API

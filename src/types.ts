@@ -81,9 +81,21 @@ export interface SseClient {
   on(event: "close", listener: () => void): void;
 }
 
+/**
+ * What an open page is watching, so reloads only fire for relevant changes:
+ * - `all`  — reload on any change (diff, broken-links)
+ * - `file` — reload only when this exact repo-relative file changes (blob)
+ * - `dir`  — reload only when a direct child of this directory changes (tree)
+ */
+export type ReloadScope =
+  | { type: "all" }
+  | { type: "file"; path: string }
+  | { type: "dir"; path: string };
+
 export interface ReloadHub {
-  add(res: SseClient): void;
-  broadcastReload(): void;
+  add(res: SseClient, scope?: ReloadScope): void;
+  /** Notify clients whose scope matches any of the changed repo-relative paths. */
+  notify(changedPaths: string[]): void;
   getRevision(): number;
   broadcastPing(): void;
   close(): void;
