@@ -1797,3 +1797,34 @@ a {
   color: var(--text);
   font: inherit;
 }
+
+/* Gist edit form */
+.gist-field {
+  display: block;
+  margin-bottom: 12px;
+}
+.gist-field > span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.gist-field input,
+.gist-field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+.gist-field textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+}
+.gist-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

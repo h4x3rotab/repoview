@@ -102,6 +102,29 @@ export function createGistStore(opts: GistStoreOptions = {}): GistStore {
       return g;
     },
 
+    update(id, { content, filename, title, ttlMs }) {
+      const g = gists.get(id);
+      if (!g || g.expiresAt <= Date.now()) {
+        gists.delete(id);
+        return undefined;
+      }
+      if (content !== undefined) {
+        if (typeof content !== "string" || content.length === 0) {
+          throw httpError("content is required", 400);
+        }
+        if (Buffer.byteLength(content, "utf8") > maxContentBytes) {
+          throw httpError("content too large", 413);
+        }
+        g.content = content;
+      }
+      if (filename !== undefined) g.filename = sanitizeFilename(filename);
+      if (title !== undefined) g.title = title && title.trim() ? title.trim() : null;
+      if (ttlMs !== undefined) {
+        g.expiresAt = Date.now() + Math.min(maxTtlMs, Math.max(minTtlMs, ttlMs));
+      }
+      return g;
+    },
+
     list() {
       const now = Date.now();
       const out: Gist[] = [];

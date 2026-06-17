@@ -80,7 +80,13 @@ after a TTL (default **24h**).
 repoview gist NOTES.md --title "Release plan"      # prints a preview URL
 cat report.md | repoview gist --filename report.md # from stdin
 repoview gist out.md --ttl 2h                       # custom TTL (1m–7d)
+repoview gist edit <id> NOTES.md                    # replace content
+repoview gist delete <id>                           # delete
+repoview gist list                                  # list active gists
 ```
+
+Gists are **editable and deletable** (like GitHub gists): the preview page has
+Edit/Delete buttons, and the HTTP API supports `PATCH`/`DELETE /api/gists/:id`.
 
 Or over HTTP (e.g. from a remote agent):
 

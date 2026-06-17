@@ -119,10 +119,20 @@ export interface GistInput {
   ttlMs?: number;
 }
 
+/** Partial update; only the provided fields change. `ttlMs` re-bases expiry. */
+export interface GistUpdate {
+  content?: string;
+  filename?: string;
+  title?: string;
+  ttlMs?: number;
+}
+
 export interface GistStore {
   create(input: GistInput): Gist;
   /** Returns the gist, or undefined if missing or expired. */
   get(id: string): Gist | undefined;
+  /** Apply a partial update; returns the updated gist, or undefined if gone. */
+  update(id: string, patch: GistUpdate): Gist | undefined;
   /** Active (non-expired) gists, newest first. */
   list(): Gist[];
   delete(id: string): boolean;

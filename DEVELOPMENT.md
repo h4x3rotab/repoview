@@ -71,8 +71,12 @@ Session-level routes:
 - `GET /api/repos`, `POST /api/repos`, `DELETE /api/repos/:id`, `POST /api/shutdown`: control API (mutations are loopback-only)
 
 Gist routes (ephemeral published files, in-memory, default 24h TTL):
+- `GET /api/gists`: list gists as JSON
 - `POST /api/gists`: publish `{content, filename?, title?, ttlSeconds?}` → `{id, url, rawUrl, expiresAt}`
-- `GET /gist/:id`: rendered preview (Markdown or highlighted code)
+- `PATCH /api/gists/:id`: edit `{content?, filename?, title?, ttlSeconds?}` → updated gist
+- `DELETE /api/gists/:id`: delete
+- `GET /gist/:id`: rendered preview (Markdown or highlighted code) with Edit/Delete
+- `GET /gist/:id/edit`: edit form
 - `GET /gist/:id/raw`: raw source
 - `GET /gists`: list of active gists
 

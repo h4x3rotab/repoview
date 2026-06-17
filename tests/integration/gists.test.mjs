@@ -55,6 +55,32 @@ describe("gist store", () => {
     assert.equal(store.list().length, 2);
     store.close();
   });
+
+  test("update patches only provided fields and keeps createdAt", () => {
+    const store = createGistStore();
+    const g = store.create({ content: "old", filename: "a.md", title: "A" });
+    const u = store.update(g.id, { content: "new", title: "B" });
+    assert.equal(u.content, "new");
+    assert.equal(u.title, "B");
+    assert.equal(u.filename, "a.md", "untouched field preserved");
+    assert.equal(u.createdAt, g.createdAt);
+    store.close();
+  });
+
+  test("update of a missing id returns undefined", () => {
+    const store = createGistStore();
+    assert.equal(store.update("nope", { title: "x" }), undefined);
+    store.close();
+  });
+
+  test("delete removes a gist", () => {
+    const store = createGistStore();
+    const g = store.create({ content: "x", filename: "x" });
+    assert.equal(store.delete(g.id), true);
+    assert.equal(store.get(g.id), undefined);
+    assert.equal(store.delete(g.id), false);
+    store.close();
+  });
 });
 
 describe("gist HTTP routes", () => {
@@ -134,5 +160,58 @@ describe("gist HTTP routes", () => {
   test("empty content is rejected (400)", async () => {
     const { res } = await publish({ content: "" });
     assert.equal(res.status, 400);
+  });
+
+  test("PATCH edits a gist; GET reflects the change", async () => {
+    const { json } = await publish({ content: "# Old\n", filename: "e.md", title: "Old" });
+    const id = json.url.split("/").pop();
+    const res = await fetch(`${base}/api/gists/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "# Brand New\n", title: "New" }),
+    });
+    assert.equal(res.status, 200);
+    const updated = await res.json();
+    assert.equal(updated.title, "New");
+    const raw = await (await fetch(`${base}/gist/${id}/raw`)).text();
+    assert.equal(raw, "# Brand New\n");
+  });
+
+  test("GET /gist/:id/edit serves an edit form", async () => {
+    const { json } = await publish({ content: "x", filename: "f.md" });
+    const id = json.url.split("/").pop();
+    const html = await (await fetch(`${base}/gist/${id}/edit`)).text();
+    assert.match(html, /id="gist-edit-form"/);
+    assert.match(html, /id="gist-content"/);
+  });
+
+  test("GET /api/gists lists gists as JSON", async () => {
+    const { json } = await publish({ content: "listed", filename: "l.md", title: "L" });
+    const id = json.url.split("/").pop();
+    const data = await (await fetch(`${base}/api/gists`)).json();
+    assert.ok(Array.isArray(data.gists));
+    assert.ok(data.gists.some((g) => g.id === id && g.title === "L"));
+  });
+
+  test("DELETE removes a gist (then 404)", async () => {
+    const { json } = await publish({ content: "bye", filename: "d.md" });
+    const id = json.url.split("/").pop();
+    assert.equal((await fetch(`${base}/api/gists/${id}`, { method: "DELETE" })).status, 200);
+    assert.equal((await fetch(`${base}/gist/${id}`)).status, 404);
+    assert.equal((await fetch(`${base}/api/gists/${id}`, { method: "DELETE" })).status, 404);
+  });
+
+  test("PATCH / DELETE of a missing id return 404", async () => {
+    assert.equal(
+      (
+        await fetch(`${base}/api/gists/doesnotexist1`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        })
+      ).status,
+      404,
+    );
+    assert.equal((await fetch(`${base}/api/gists/doesnotexist1`, { method: "DELETE" })).status, 404);
   });
 });

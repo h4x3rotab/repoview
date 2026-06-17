@@ -58,6 +58,8 @@ export function renderGistPage({ gist, html, isMarkdown }: GistPageOptions): str
           <span class="spacer"></span>
           <a class="btn" href="/gists">All gists</a>
           <a class="btn" href="/gist/${encodeURIComponent(gist.id)}/raw">Raw</a>
+          <a class="btn" href="/gist/${encodeURIComponent(gist.id)}/edit">Edit</a>
+          <button class="btn gist-delete" type="button" data-id="${escapeHtml(gist.id)}">Delete</button>
         </div>
         <div class="${wrapClass}">
           ${html}
@@ -65,6 +67,54 @@ export function renderGistPage({ gist, html, isMarkdown }: GistPageOptions): str
       </section>
     </main>
     ${GIST_SCRIPTS}
+    <script type="module" src="/static/gist.js"></script>
+  </body>
+</html>`;
+}
+
+interface GistEditPageOptions {
+  gist: Gist;
+}
+
+export function renderGistEditPage({ gist }: GistEditPageOptions): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Edit ${escapeHtml(gist.filename)} · gist</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body data-repo-base="">
+    <header class="topbar">
+      <div class="topbar-row">
+        <a class="brand" href="/gists">repoview</a>
+        <div class="meta"><span class="pill">edit gist</span></div>
+      </div>
+    </header>
+    <main class="container">
+      <form id="gist-edit-form" class="card gist-edit" data-gist-id="${escapeHtml(gist.id)}">
+        <h2 class="card-title">Edit gist</h2>
+        <label class="gist-field">
+          <span>Title (optional)</span>
+          <input id="gist-title" type="text" value="${escapeHtml(gist.title || "")}" autocomplete="off" />
+        </label>
+        <label class="gist-field">
+          <span>Filename</span>
+          <input id="gist-filename" type="text" value="${escapeHtml(gist.filename)}" autocomplete="off" />
+        </label>
+        <label class="gist-field">
+          <span>Content</span>
+          <textarea id="gist-content" rows="20" spellcheck="false">${escapeHtml(gist.content)}</textarea>
+        </label>
+        <div class="gist-edit-actions">
+          <button class="btn" type="submit">Save</button>
+          <a class="btn" href="/gist/${encodeURIComponent(gist.id)}">Cancel</a>
+          <span class="muted" id="gist-edit-error"></span>
+        </div>
+      </form>
+    </main>
+    <script type="module" src="/static/gist.js"></script>
   </body>
 </html>`;
 }

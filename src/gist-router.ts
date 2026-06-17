@@ -2,7 +2,12 @@ import path from "node:path";
 import express from "express";
 import type { Request, Response } from "express";
 
-import { renderGistPage, renderGistListPage, renderErrorPage } from "./views.js";
+import {
+  renderGistPage,
+  renderGistEditPage,
+  renderGistListPage,
+  renderErrorPage,
+} from "./views.js";
 import type { GistStore, MarkdownRenderer } from "./types.js";
 import type { HttpError } from "./paths.js";
 
@@ -56,8 +61,84 @@ export function createGistRouter({ store, md, baseUrlEnv }: GistRouterDeps) {
     }
   });
 
+  router.patch("/api/gists/:id", express.json({ limit: "2mb" }), (req: Request, res: Response) => {
+    if (!ID_RE.test(req.params.id)) {
+      return res.status(400).json({ error: "Invalid gist id" });
+    }
+    try {
+      const { content, filename, title, ttlSeconds } = req.body ?? {};
+      const ttlMs =
+        typeof ttlSeconds === "number" && Number.isFinite(ttlSeconds) && ttlSeconds > 0
+          ? ttlSeconds * 1000
+          : undefined;
+      const gist = store.update(req.params.id, { content, filename, title, ttlMs });
+      if (!gist) return res.status(404).json({ error: "Gist not found or expired" });
+      const base = resolveBaseUrl(req, baseUrlEnv);
+      res.json({
+        id: gist.id,
+        filename: gist.filename,
+        title: gist.title,
+        url: `${base}/gist/${gist.id}`,
+        rawUrl: `${base}/gist/${gist.id}/raw`,
+        expiresAt: new Date(gist.expiresAt).toISOString(),
+      });
+    } catch (e) {
+      const err = e as HttpError;
+      res.status(err.statusCode || 500).json({ error: err.message });
+    }
+  });
+
+  router.get("/api/gists", (req: Request, res: Response) => {
+    const base = resolveBaseUrl(req, baseUrlEnv);
+    res.json({
+      gists: store.list().map((g) => ({
+        id: g.id,
+        filename: g.filename,
+        title: g.title,
+        url: `${base}/gist/${g.id}`,
+        rawUrl: `${base}/gist/${g.id}/raw`,
+        createdAt: new Date(g.createdAt).toISOString(),
+        expiresAt: new Date(g.expiresAt).toISOString(),
+      })),
+    });
+  });
+
+  router.delete("/api/gists/:id", (req: Request, res: Response) => {
+    if (!ID_RE.test(req.params.id)) {
+      return res.status(400).json({ error: "Invalid gist id" });
+    }
+    if (!store.delete(req.params.id)) {
+      return res.status(404).json({ error: "Gist not found" });
+    }
+    res.json({ ok: true, id: req.params.id });
+  });
+
   router.get("/gists", (req: Request, res: Response) => {
     res.send(renderGistListPage({ gists: store.list() }));
+  });
+
+  router.get("/gist/:id/edit", (req: Request, res: Response) => {
+    if (!ID_RE.test(req.params.id)) {
+      return res.status(400).send(
+        renderErrorPage({
+          title: "Error",
+          message: "Invalid gist id",
+          repoBase: "",
+          repos: [],
+          currentRepoId: "",
+        }),
+      );
+    }
+    const gist = store.get(req.params.id);
+    if (!gist) {
+      return res.status(404).send(
+        renderGistListPage({
+          gists: store.list(),
+          notice: "That gist has expired or does not exist.",
+        }),
+      );
+    }
+    res.send(renderGistEditPage({ gist }));
   });
 
   router.get("/gist/:id/raw", (req: Request, res: Response) => {

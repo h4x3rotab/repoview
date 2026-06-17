@@ -36,13 +36,16 @@ MANAGE THE SESSION (require a running daemon on --port)
   repoview rm <id|path>       Unregister a repo
   repoview stop               Shut the session daemon down
 
-PUBLISH A GIST (ephemeral file preview; default TTL 24h, gone on restart)
+GISTS (ephemeral file previews; default TTL 24h, gone on restart, editable)
+  Need a running daemon on --port (or --url for a remote server's API).
   repoview gist <file> [--title "T"] [--ttl 24h] [--filename name.md] [--url URL]
-  cat report.md | repoview gist --filename report.md      (reads stdin)
-    Needs a running daemon on --port (or use --url for a remote server). Prints
-    ONE line: the preview URL. --ttl accepts 30m/24h/7d/seconds (1m–7d).
-    Note: --title is the page/list label only; the rendered H1 still comes from
-    the file's own first Markdown heading.
+                                          Publish; prints ONE line: the URL.
+  cat report.md | repoview gist --filename report.md      Publish from stdin
+  repoview gist edit <id> [file] [--title] [--filename] [--ttl]   Update a gist
+  repoview gist delete <id>                                       Delete a gist
+  repoview gist list                                              List gists
+    --ttl accepts 30m/24h/7d/seconds (1m–7d). --title is the page/list label
+    only; the rendered H1 comes from the file's own first Markdown heading.
 
 CODE REVIEW THREADS (pure filesystem, NO daemon — operate on a repo's .repoview/)
   Add --repo <path> to EVERY review command (default: $REPO_ROOT or cwd — NOT the
@@ -59,8 +62,11 @@ HTTP API (for agents / remote use — base = http://<host>:<port>)
   POST   /api/repos              {path, watch?} → {id, url}        (localhost only)
   DELETE /api/repos/:id          → {ok}                           (localhost only)
   POST   /api/shutdown           → {ok}                           (localhost only)
+  GET    /api/gists              {gists:[{id,filename,title,url,expiresAt}]}
   POST   /api/gists              {content, filename?, title?, ttlSeconds?}
                                  → {id, url, rawUrl, expiresAt}
+  PATCH  /api/gists/:id          {content?, filename?, title?, ttlSeconds?} → gist
+  DELETE /api/gists/:id          → {ok}
   Examples:
     curl -s $BASE/api/session
     curl -s -X POST $BASE/api/gists -H 'content-type: application/json' \\
@@ -244,44 +250,82 @@ function parseDuration(text: string): number | undefined {
   return n * mult;
 }
 
-async function runGist(restArgs: string[], localBase: string): Promise<number> {
-  const flags: { title?: string; ttl?: string; filename?: string; url?: string } = {};
+interface GistFlags {
+  title?: string;
+  ttl?: string;
+  filename?: string;
+  url?: string;
+}
+
+function parseGistArgs(args: string[]): { flags: GistFlags; positional: string[] } {
+  const flags: GistFlags = {};
   const positional: string[] = [];
-  for (let i = 0; i < restArgs.length; i++) {
-    const v = restArgs[i];
-    if (v === "--title") flags.title = restArgs[++i];
-    else if (v === "--ttl") flags.ttl = restArgs[++i];
-    else if (v === "--filename") flags.filename = restArgs[++i];
-    else if (v === "--url") flags.url = restArgs[++i];
+  for (let i = 0; i < args.length; i++) {
+    const v = args[i];
+    if (v === "--title") flags.title = args[++i];
+    else if (v === "--ttl") flags.ttl = args[++i];
+    else if (v === "--filename") flags.filename = args[++i];
+    else if (v === "--url") flags.url = args[++i];
     else positional.push(v);
   }
+  return { flags, positional };
+}
 
-  const file = positional[0];
-  let content: string;
+/** Read content from a file path, else stdin if piped, else undefined. */
+async function readGistContent(file: string | undefined): Promise<string | undefined> {
   if (file) {
     const fs = await import("node:fs/promises");
-    content = await fs.readFile(file, "utf8");
-  } else {
+    return fs.readFile(file, "utf8");
+  }
+  if (!process.stdin.isTTY) {
     const chunks: Buffer[] = [];
     for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-    content = Buffer.concat(chunks).toString("utf8");
+    return Buffer.concat(chunks).toString("utf8");
   }
-  if (!content.trim()) {
+  return undefined;
+}
+
+function ttlSecondsFrom(flags: GistFlags): number | undefined | null {
+  if (!flags.ttl) return undefined;
+  const s = parseDuration(flags.ttl);
+  if (s == null) {
+    process.stderr.write(`Invalid --ttl: ${flags.ttl} (use e.g. 30m, 24h, 7d)\n`);
+    return null; // signal error
+  }
+  return s;
+}
+
+function gistTarget(flags: GistFlags, localBase: string): string {
+  return flags.url ? flags.url.replace(/\/+$/, "") : localBase;
+}
+
+function noSession(target: string): number {
+  process.stderr.write(
+    `No repoview session at ${target}. Start one with \`repoview\` first, or pass --url.\n`,
+  );
+  return 1;
+}
+
+async function runGist(restArgs: string[], localBase: string): Promise<number> {
+  const sub = restArgs[0];
+  if (sub === "edit") return runGistEdit(restArgs.slice(1), localBase);
+  if (sub === "delete" || sub === "rm") return runGistDelete(restArgs.slice(1), localBase);
+  if (sub === "list" || sub === "ls") return runGistList(restArgs.slice(1), localBase);
+  return runGistCreate(sub === "create" ? restArgs.slice(1) : restArgs, localBase);
+}
+
+async function runGistCreate(args: string[], localBase: string): Promise<number> {
+  const { flags, positional } = parseGistArgs(args);
+  const file = positional[0];
+  const content = await readGistContent(file);
+  if (!content || !content.trim()) {
     process.stderr.write("Error: no content (pass a file or pipe via stdin)\n");
     return 1;
   }
-
+  const ttlSeconds = ttlSecondsFrom(flags);
+  if (ttlSeconds === null) return 1;
   const filename = flags.filename || (file ? path.basename(file) : "gist.md");
-  let ttlSeconds: number | undefined;
-  if (flags.ttl) {
-    ttlSeconds = parseDuration(flags.ttl);
-    if (ttlSeconds == null) {
-      process.stderr.write(`Invalid --ttl: ${flags.ttl} (use e.g. 30m, 24h, 7d)\n`);
-      return 1;
-    }
-  }
-
-  const target = flags.url ? flags.url.replace(/\/+$/, "") : localBase;
+  const target = gistTarget(flags, localBase);
   let result: { url?: string } | null;
   try {
     result = (await fetchJson(`${target}/api/gists`, {
@@ -293,13 +337,85 @@ async function runGist(restArgs: string[], localBase: string): Promise<number> {
     process.stderr.write(`Error: ${(e as Error).message}\n`);
     return 1;
   }
-  if (!result) {
-    process.stderr.write(
-      `No repoview session at ${target}. Start one with \`repoview\` first, or pass --url.\n`,
-    );
+  if (!result) return noSession(target);
+  process.stdout.write(`${result.url}\n`);
+  return 0;
+}
+
+async function runGistEdit(args: string[], localBase: string): Promise<number> {
+  const { flags, positional } = parseGistArgs(args);
+  const id = positional[0];
+  if (!id) {
+    process.stderr.write("Usage: repoview gist edit <id> [file] [--title] [--filename] [--ttl]\n");
     return 1;
   }
+  const content = await readGistContent(positional[1]);
+  const ttlSeconds = ttlSecondsFrom(flags);
+  if (ttlSeconds === null) return 1;
+
+  const body: Record<string, unknown> = {};
+  if (content !== undefined) body.content = content;
+  if (flags.filename !== undefined) body.filename = flags.filename;
+  if (flags.title !== undefined) body.title = flags.title;
+  if (ttlSeconds !== undefined) body.ttlSeconds = ttlSeconds;
+  if (Object.keys(body).length === 0) {
+    process.stderr.write("Nothing to update (pass new content, --title, --filename, or --ttl)\n");
+    return 1;
+  }
+
+  const target = gistTarget(flags, localBase);
+  let result: { url?: string } | null;
+  try {
+    result = (await fetchJson(`${target}/api/gists/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })) as { url?: string } | null;
+  } catch (e) {
+    process.stderr.write(`Error: ${(e as Error).message}\n`);
+    return 1;
+  }
+  if (!result) return noSession(target);
   process.stdout.write(`${result.url}\n`);
+  return 0;
+}
+
+async function runGistDelete(args: string[], localBase: string): Promise<number> {
+  const { flags, positional } = parseGistArgs(args);
+  const id = positional[0];
+  if (!id) {
+    process.stderr.write("Usage: repoview gist delete <id>\n");
+    return 1;
+  }
+  const target = gistTarget(flags, localBase);
+  try {
+    const result = await fetchJson(`${target}/api/gists/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    if (!result) return noSession(target);
+  } catch (e) {
+    process.stderr.write(`Error: ${(e as Error).message}\n`);
+    return 1;
+  }
+  process.stdout.write(`Deleted ${id}\n`);
+  return 0;
+}
+
+async function runGistList(args: string[], localBase: string): Promise<number> {
+  const { flags } = parseGistArgs(args);
+  const target = gistTarget(flags, localBase);
+  const result = (await fetchJson(`${target}/api/gists`)) as {
+    gists?: Array<{ id: string; filename: string; title: string | null; url?: string }>;
+  } | null;
+  if (!result) return noSession(target);
+  const gists = result.gists || [];
+  if (!gists.length) {
+    process.stdout.write("(no active gists)\n");
+    return 0;
+  }
+  for (const g of gists) {
+    process.stdout.write(`${g.id.padEnd(14)} ${(g.title || g.filename).padEnd(28)} ${g.url || ""}\n`);
+  }
   return 0;
 }
 

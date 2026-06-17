@@ -11,7 +11,12 @@ All notable changes to this project are documented here. This project adheres to
   want the user to read it.
   - `POST /api/gists` `{content, filename?, title?, ttlSeconds?}` → `{id, url, rawUrl, expiresAt}`
   - `GET /gist/:id` (rendered preview), `GET /gist/:id/raw`, `GET /gists` (list)
-  - CLI: `repoview gist <file> [--title] [--ttl 24h] [--filename] [--url]`, or from stdin
+  - **Editable & deletable** (GitHub-gist-shaped): `PATCH /api/gists/:id`,
+    `DELETE /api/gists/:id`, `GET /api/gists` (JSON list), an `/gist/:id/edit`
+    form, and Edit/Delete buttons on the preview page.
+  - CLI: `repoview gist <file>` (create) plus `gist edit <id> [file]`,
+    `gist delete <id>`, `gist list` — all also work via `--url` against a remote
+    server. Create/edit read from a file or stdin.
   - Gists are **in memory only** (don't survive a restart) and expire after a TTL
     (default 24h, clamped 1m–7d); capped at 1 MB / 500 gists.
 - **`REPOVIEW_BASE_URL`** env var sets the absolute origin used in returned gist
