@@ -81,11 +81,61 @@ export interface SseClient {
   on(event: "close", listener: () => void): void;
 }
 
+/**
+ * What an open page is watching, so reloads only fire for relevant changes:
+ * - `all`  — reload on any change (diff, broken-links)
+ * - `file` — reload only when this exact repo-relative file changes (blob)
+ * - `dir`  — reload only when a direct child of this directory changes (tree)
+ */
+export type ReloadScope =
+  | { type: "all" }
+  | { type: "file"; path: string }
+  | { type: "dir"; path: string };
+
 export interface ReloadHub {
-  add(res: SseClient): void;
-  broadcastReload(): void;
+  add(res: SseClient, scope?: ReloadScope): void;
+  /** Notify clients whose scope matches any of the changed repo-relative paths. */
+  notify(changedPaths: string[]): void;
   getRevision(): number;
   broadcastPing(): void;
+  close(): void;
+}
+
+/** An ephemeral published file ("gist"). Lives in memory only. */
+export interface Gist {
+  id: string;
+  title: string | null;
+  filename: string;
+  content: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+export interface GistInput {
+  content: string;
+  filename?: string;
+  title?: string;
+  /** Time-to-live in ms; clamped to the store's bounds. Defaults to 24h. */
+  ttlMs?: number;
+}
+
+/** Partial update; only the provided fields change. `ttlMs` re-bases expiry. */
+export interface GistUpdate {
+  content?: string;
+  filename?: string;
+  title?: string;
+  ttlMs?: number;
+}
+
+export interface GistStore {
+  create(input: GistInput): Gist;
+  /** Returns the gist, or undefined if missing or expired. */
+  get(id: string): Gist | undefined;
+  /** Apply a partial update; returns the updated gist, or undefined if gone. */
+  update(id: string, patch: GistUpdate): Gist | undefined;
+  /** Active (non-expired) gists, newest first. */
+  list(): Gist[];
+  delete(id: string): boolean;
   close(): void;
 }
 

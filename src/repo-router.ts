@@ -19,7 +19,7 @@ import {
 import { toPosixPath, encodePathForUrl, safeRealpath, statSafe } from "./paths.js";
 import type { HttpError } from "./paths.js";
 import { isLoopbackAddress } from "./net.js";
-import type { RepoContext } from "./types.js";
+import type { RepoContext, ReloadScope } from "./types.js";
 import type { Session } from "./session.js";
 import { formatBytes, formatDate } from "./format.js";
 import { parseCsv, renderCsvTable } from "./csv.js";
@@ -99,7 +99,18 @@ function buildRepoRouter(ctx: RepoContext, repoBase: string, session: Session) {
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders?.();
     res.write("event: hello\ndata: ok\n\n");
-    ctx.reloadHub.add(res);
+
+    // Scope reloads to what the page is actually showing (file/dir), defaulting
+    // to "all" for repo-wide views (diff, broken-links) and unknown scopes.
+    const scopeType = qstr(req.query.scope);
+    const scopePath = qstr(req.query.path) ?? "";
+    const scope: ReloadScope =
+      scopeType === "file"
+        ? { type: "file", path: scopePath }
+        : scopeType === "dir"
+          ? { type: "dir", path: scopePath }
+          : { type: "all" };
+    ctx.reloadHub.add(res, scope);
 
     const interval = setInterval(() => {
       try {

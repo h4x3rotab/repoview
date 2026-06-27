@@ -10,6 +10,7 @@ This doc collects the “how it works” details so `README.md` can stay product
 - `src/repo-context.ts`: per-repo runtime state (git info, gitignore matcher, link scanner, reload hub, file watcher)
 - `src/repo-router.ts`: the per-repo routes (`/tree`, `/blob`, `/raw`, `/diff`, `/review`, `/events`, …) as a router that resolves `/r/:repoId` → a per-repo child router
 - `src/net.ts`: loopback helpers (control-endpoint guard, bind-host check)
+- `src/gists.ts` / `src/gist-router.ts`: in-memory ephemeral gist store (TTL, expiry sweeper) and its routes
 - `src/types.ts`: shared interfaces (`RepoContext`, `Session`/`RepoSummary`, `GitInfo`, `MarkdownRenderer`, `LinkScanner`, …)
 - `src/git.ts` / `src/paths.ts` / `src/format.ts` / `src/csv.ts` / `src/reload.ts`: extracted helpers (git CLI, path safety, byte/date formatting, CSV parsing, SSE reload hub)
 - `src/markdown.ts`: Markdown rendering + link/image rewriting (repo-prefixed) + sanitization
@@ -68,6 +69,19 @@ Session-level routes:
 - `GET /session`: manage repos (open / add / remove); read-only for non-loopback clients
 - `GET /api/session`: session signature + repo list (also the join handshake)
 - `GET /api/repos`, `POST /api/repos`, `DELETE /api/repos/:id`, `POST /api/shutdown`: control API (mutations are loopback-only)
+
+Gist routes (ephemeral published files, in-memory, default 24h TTL):
+- `GET /api/gists`: list gists as JSON
+- `POST /api/gists`: publish `{content, filename?, title?, ttlSeconds?}` → `{id, url, rawUrl, expiresAt}`
+- `PATCH /api/gists/:id`: edit `{content?, filename?, title?, ttlSeconds?}` → updated gist
+- `DELETE /api/gists/:id`: delete
+- `GET /gist/:id`: rendered preview (Markdown or highlighted code) with Edit/Delete
+- `GET /gist/:id/edit`: edit form
+- `GET /gist/:id/raw`: raw source
+- `GET /gists`: list of active gists
+
+`REPOVIEW_BASE_URL` sets the absolute origin used in returned gist URLs (falls
+back to the request `Host` header).
 
 ## Link rewriting rules
 

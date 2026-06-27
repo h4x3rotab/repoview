@@ -3,6 +3,40 @@
 All notable changes to this project are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 0.6.1 — 2026-06-27
+
+### Added
+- **Ephemeral gists.** Publish an arbitrary file (usually Markdown) to a running
+  session and get a shareable preview URL — for agents that generate a doc and
+  want the user to read it.
+  - `POST /api/gists` `{content, filename?, title?, ttlSeconds?}` → `{id, url, rawUrl, expiresAt}`
+  - `GET /gist/:id` (rendered preview), `GET /gist/:id/raw`, `GET /gists` (list)
+  - **Editable & deletable** (GitHub-gist-shaped): `PATCH /api/gists/:id`,
+    `DELETE /api/gists/:id`, `GET /api/gists` (JSON list), an `/gist/:id/edit`
+    form, and Edit/Delete buttons on the preview page.
+  - CLI: `repoview gist <file>` (create) plus `gist edit <id> [file]`,
+    `gist delete <id>`, `gist list` — all also work via `--url` against a remote
+    server. Create/edit read from a file or stdin.
+  - Gists are **in memory only** (don't survive a restart) and expire after a TTL
+    (default 24h, clamped 1m–7d); capped at 1 MB / 500 gists.
+- **`REPOVIEW_BASE_URL`** env var sets the absolute origin used in returned gist
+  URLs (so a remotely-running server returns clickable links). Falls back to the
+  request `Host` header.
+- A **Gists** link in the top bar (and on the session page) → the `/gists` list.
+
+### Changed
+- **Scoped live reload.** A page now reloads only for changes relevant to it: a
+  file view reloads on its exact file, a directory view on its direct children,
+  and repo-wide views (diff, broken-links) on any change. Previously any edit
+  reloaded every open page of that repo. Gist/session pages no longer live-reload
+  (their content is static), which also removes spurious reloads of open gist
+  tabs when the default repo changed.
+- **Rewrote `--help`** to be comprehensive and agent-friendly: documents the
+  daemon lifecycle (first run is the foreground server; later runs exit), all
+  subcommands and their daemon/`--repo` requirements, the HTTP control + gist API
+  with example payloads, the page map, and env vars (incl. that
+  `REPOVIEW_BASE_URL` is read by the server, not the client).
+
 ## 0.6.0 — 2026-06-04
 
 ### Added
