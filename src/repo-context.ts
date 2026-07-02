@@ -1,12 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import chokidar from "chokidar";
 
 import { loadGitIgnoreMatcher } from "./gitignore.js";
 import { createRepoLinkScanner } from "./linkcheck.js";
 import { getGitInfo } from "./git.js";
 import { createReloadHub } from "./reload.js";
-import { toPosixPath } from "./paths.js";
+import { createRepoWatcher } from "./watcher.js";
 import type { LinkScanner, MarkdownRenderer, RepoContext } from "./types.js";
 
 export interface CreateRepoContextOptions {
@@ -58,40 +57,37 @@ export async function createRepoContext({
   void ctx.linkScanner.triggerScan();
 
   if (watch) {
-    const watcher = chokidar.watch(repoRootReal, {
-      ignored: [
-        /(^|[/\\])\.git([/\\]|$)/,
-        /(^|[/\\])node_modules([/\\]|$)/,
-        /(^|[/\\])\.repoview([/\\]|$)/,
-      ],
-      ignoreInitial: true,
-      ignorePermissionErrors: true,
-    });
-    watcher.on("error", () => {
-      // Silently ignore watch errors (e.g., permission denied)
-    });
     let pending: ReturnType<typeof setTimeout> | null = null;
     const changed = new Set<string>();
-    watcher.on("all", (_event, changedPath?: string) => {
-      if (typeof changedPath === "string") {
-        changed.add(toPosixPath(path.relative(repoRootReal, changedPath)));
-      }
-      if (pending) return;
-      pending = setTimeout(() => {
-        pending = null;
-        const paths = [...changed];
-        changed.clear();
-        reloadHub.notify(paths);
-        void loadGitIgnoreMatcher(repoRootReal).then((m) => (ctx.ignoreMatcher = m));
-        void ctx.linkScanner.triggerScan();
-      }, 100);
+    const watcher = createRepoWatcher({
+      repoRootReal,
+      isIgnored: ctx.isIgnored,
+      onChange: (paths) => {
+        for (const p of paths) changed.add(p);
+        if (pending) return;
+        pending = setTimeout(() => {
+          pending = null;
+          const batch = [...changed];
+          changed.clear();
+          reloadHub.notify(batch);
+          void loadGitIgnoreMatcher(repoRootReal).then((m) => (ctx.ignoreMatcher = m));
+          void ctx.linkScanner.triggerScan();
+        }, 100);
+      },
+      onError: (error) => {
+        // Warn but keep serving. Live reload simply won't work.
+        // eslint-disable-next-line no-console
+        console.warn(
+          `repoview: live reload unavailable for ${repoRootReal}: ${error.message}`,
+        );
+      },
     });
-    ctx.watcher = watcher;
+    if (watcher) ctx.watcher = watcher as unknown as RepoContext["watcher"];
   }
 
   ctx.close = async () => {
     reloadHub.close();
-    if (ctx.watcher) await ctx.watcher.close();
+    if (ctx.watcher) ctx.watcher.close();
   };
 
   return ctx;
