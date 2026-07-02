@@ -27,7 +27,7 @@
     "CONTRIBUTING.md"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "keywords": [
     "git",
@@ -49,7 +49,6 @@
     "test:e2e:headed": "npx playwright test --headed"
   },
   "dependencies": {
-    "chokidar": "^4.0.3",
     "diff2html": "^3.4.56",
     "express": "^4.21.2",
     "github-markdown-css": "^5.8.1",
