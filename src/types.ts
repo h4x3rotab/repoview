@@ -1,5 +1,3 @@
-import type { FSWatcher } from "chokidar";
-
 export interface GitInfo {
   branch: string | null;
   commit: string | null;
@@ -151,6 +149,6 @@ export interface RepoContext {
   ignoreMatcher: IgnoreMatcher;
   isIgnored: (relPosix: string, options?: IgnoreOptions) => boolean;
   linkScanner: LinkScanner;
-  watcher: FSWatcher | null;
+  watcher: { close: () => void } | null;
   close(): Promise<void>;
 }
